@@ -21,6 +21,7 @@ set(SRC
   src/domain.cpp
   src/kb_core.cpp
   src/observations.cpp
+  src/metrics.cpp
 )
 
 # Executable
