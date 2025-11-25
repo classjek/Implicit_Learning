@@ -4,6 +4,7 @@
 #include "metrics.h"
 
 #include <iostream>
+#include <fstream>
 #include <cmath>
 
 // int main(int argc, char** argv) {
@@ -31,6 +32,35 @@ int main() {
   std::cout << "Parsed " << constraints.size() << " constraints" << std::endl;
   std::cout << "Ground Genes: " << groundNames.genes.size() << " , Enzymes: " << groundNames.enzymes.size() 
             << " , Reactions: " << groundNames.reactions.size() << " , Compounds: " << groundNames.compounds.size() << std::endl;
+
+  // Read in Universally Quantified Constraints
+  std::ifstream in("../data/universalConstraints.txt");   
+  if (!in) {
+      std::cerr << "Could not open constraints file\n";
+      return 1;
+  }
+
+  std::vector<kb::Constraint> universal_constraints;
+  std::string line;
+  while (std::getline(in, line)) {
+        if (line.empty() || (line[0] == '#' && line[1] == '#')) continue;    
+        try {
+            // Only add constraint if not already present
+            auto constraint = domain::parseConstraint(line);
+            if (std::find(universal_constraints.begin(), universal_constraints.end(), constraint) == universal_constraints.end()) {
+                universal_constraints.push_back(constraint);
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Parse error in line: \"" << line << "\"\n  " << e.what() << '\n';
+        }
+  }
+  in.close();
+  // std::cout << "Universal constraints added: " << universal_constraints.size() << std::endl;
+  std::cout << '\n' << "Printing All Constraints(" << constraints.size() << "):" << std::endl;
+  for (size_t i = 0; i < universal_constraints.size(); i++) {
+      std::cout << "    constraint[" << i << "] takes " << "6" << " args: "  << universal_constraints[i].poly.toString() << " " << (universal_constraints[i].cmp == kb::Cmp::GE0 ? ">=" : "=") << " 0\n";
+  }
+
 
   int num_observations = 6;
   cfg.omp_threads = std::floor(36 / num_observations);

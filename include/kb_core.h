@@ -47,7 +47,6 @@ struct Monomial {
 };
 
 using MonoPtr = std::shared_ptr<Monomial>;
-//using Coeff = std::int64_t;
 using Coeff = double; 
 using Term  = std::pair<MonoPtr, Coeff>;
 
@@ -66,11 +65,11 @@ enum class Cmp : std::uint8_t { EQ0, GE0 };
 
 struct Constraint {
     Polynomial poly;
-    Cmp        cmp = Cmp::GE0;
+    Cmp cmp = Cmp::GE0;
 
     // what is this used for? 
     std::vector<std::pair<Sym,Sym>> neq;   // var‑var distinctness
-    std::vector<std::string> getInputs(const std::unordered_set<Sym>& groundVariables);
+    std::vector<std::string> getInputs(const std::unordered_set<Sym>& groundVariables); // Needs to be changed to support types
     void groundConstraint(std::unordered_map<Sym,int>& groundMap, const std::vector<std::string>& perm, const std::unordered_set<Sym>& groundVariables, std::string& resultString, std::vector<int>& resultVec);
     bool operator==(const Constraint& o) const noexcept;
 };
