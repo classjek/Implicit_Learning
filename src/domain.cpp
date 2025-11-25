@@ -2,18 +2,22 @@
 #include "kb_core.h"
 #include <fstream>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace domain {
 
-void initializePredicateSignatures() {
-    // Custom to our domain
+void initializePredicateSignatures() { // custom to our domain
     PREDICATE_SIGNATURES["function"] = {SymbolType::GENE, SymbolType::ENZYME};
     PREDICATE_SIGNATURES["ortholog"] = {SymbolType::GENE, SymbolType::GENE};
     PREDICATE_SIGNATURES["reaction_enzyme"] = {SymbolType::REACTION, SymbolType::ENZYME};
     PREDICATE_SIGNATURES["reaction_compound_reaction"] = {SymbolType::REACTION, SymbolType::COMPOUND, SymbolType::REACTION};
     PREDICATE_SIGNATURES["accept_compound"] = {SymbolType::COMPOUND};
+    PREDICATE_SIGNATURES["reaction"] = {SymbolType::REACTION, SymbolType::COMPOUND, SymbolType::REACTION}; 
+    PREDICATE_SIGNATURES["enzyme_reaction_path"] = {SymbolType::GENE, SymbolType::ENZYME, SymbolType::REACTION, SymbolType::REACTION, SymbolType::ENZYME, SymbolType::GENE};
+    PREDICATE_SIGNATURES["ortholog_support"] = {SymbolType::GENE, SymbolType::GENE, SymbolType::ENZYME}; 
 }
 
+#pragma region ProbLogParser
 // Add Problog Parser 
 ProbLogParser::ProbLogParser(GroundNames& gn) : groundNames(gn) {}
 
@@ -187,5 +191,264 @@ std::string ProbLogParser::trim(const std::string& s) {
     
     return s.substr(start, end - start);
 }
+
+#pragma endregion // end ProbLogParser
+
+#pragma region ConstraintParser 
+// The ConstraintParser is only exposed via the domain.h interface function parseConstraint
+// thus we implement it entirely here in domain.cpp
+enum class Tok { IDENT, NUMBER, PLUS, MINUS, STAR, LP, RP, COMMA, GE, EQ, NEQ, COLON, END };
+struct Token { Tok kind; std::string text; };
+
+std::unordered_map<std::string, AtomPtr> atomPool;
+std::unordered_map<std::string, MonoPtr> monomialPool;
+
+// canonical-string builder (same as your makeKey)
+static std::string atomKey(const std::string& rel, const std::vector<Sym>& args) {
+    std::string k = rel;
+    k.push_back('(');
+    for (std::size_t i=0;i<args.size();++i) {
+        k += args[i];
+        if (i+1<args.size()) k.push_back(',');
+    }
+    k.push_back(')');
+    return k;
+}
+
+AtomPtr internAtom(const std::string& rel, const std::vector<Sym>& args) {
+    std::string key = atomKey(rel, args);
+    auto [it, inserted] = atomPool.try_emplace(key, nullptr);
+    if (inserted) {
+        auto a = std::make_shared<Atom>();
+        a->rel  = rel;
+        a->args = args;
+        it->second = a;
+    }
+    return it->second;
+}
+
+class Lexer {
+public:
+    explicit Lexer(const std::string &s) : src(s), p(src.c_str()) { next(); }
+
+    const Token &peek() const { return cur; }
+    Token pop()  { Token t = cur; next(); return t; }
+    Token peekNext() const {
+        //const char *saveP = p;
+        Token saveCur     = cur;
+        // create a throw-away lexer just to advance once
+        Lexer tmp(*this);
+        tmp.pop();                 // skip current token
+        Token nxt = tmp.peek();
+        return nxt;
+    }
+
+private:
+    void next() {
+        while (std::isspace(*p)) ++p;
+        if (*p == '\0') { cur = {Tok::END, ""}; return; }
+        char c = *p;
+        if (std::isalpha(c) || c=='_') {
+            const char *start = p;
+            while (std::isalnum(*p) || *p=='_') ++p;
+            cur = {Tok::IDENT, std::string(start, p)}; return;
+        }
+        if (std::isdigit(c) || (c == '.' && std::isdigit(*(p + 1)))) {
+            const char* start = p;
+            bool seenDot = false;
+            while (std::isdigit(*p) || (*p == '.' && !seenDot)) {
+                if (*p == '.') seenDot = true;
+                ++p;
+            }
+            cur = {Tok::NUMBER, std::string(start, p)};
+            return;
+        }
+        ++p; // consume single char tokens
+        switch (c) {
+            case '+': cur = {Tok::PLUS, "+"}; return;
+            case '-': cur = {Tok::MINUS,"-"}; return;
+            case '*': cur = {Tok::STAR, "*"}; return;
+            case '(': cur = {Tok::LP,   "("}; return;
+            case ')': cur = {Tok::RP,   ")"}; return;
+            case ',': cur = {Tok::COMMA,","}; return;
+            case ':': cur = {Tok::COLON, ":"}; return;
+            case '>': if (*p=='='){ ++p; cur={Tok::GE, ">="}; return; }; break;
+            case '!': if (*p=='='){ ++p; cur = {Tok::NEQ, "!="}; return; } break;
+            default:  break;
+        }
+        if (c=='=') { cur={Tok::EQ, "="}; return; }
+        throw std::runtime_error("Unexpected char in input");
+    }
+    const std::string &src; const char *p; Token cur;
+};
+
+
+struct Parser {
+    explicit Parser(const std::string &s) : lex(s) {}
+    Constraint parse();
+private:
+    // grammar helpers
+    Polynomial parseSum();              // sum  ::= product ((+|-) product)*
+    std::pair<bool,Coeff>  parseCoefficient();      // coefficient ::= number? '*'
+    MonoPtr    parseProduct();          // product ::= factor (factor)*
+    MonoPtr    parseFactor();           // factor ::= atom | number
+    AtomPtr    parseAtom();
+
+    // utility
+    bool accept(Tok k){ if(lex.peek().kind==k){ lex.pop(); return true;} return false; }
+    void expect(Tok k,const char*msg){ if(!accept(k)) throw std::runtime_error(msg);}  
+    std::size_t varIndex(const std::string& name, std::vector<std::string>& vars);
+
+    Lexer lex;
+};
+
+std::size_t varIndex(const std::string& name, std::vector<std::string>& vars) {
+    auto it = std::find(vars.begin(), vars.end(), name);
+    if (it != vars.end()) return std::distance(vars.begin(), it);
+    vars.push_back(name);
+    return vars.size()-1;
+}
+
+AtomPtr Parser::parseAtom() {
+    // Extract id and args, i.e. Q and x,b from Q(x,b)
+    Token id = lex.pop();              
+    expect(Tok::LP, "Expected '('");
+    std::vector<Sym> args;
+    if (lex.peek().kind != Tok::RP) {
+        do {
+            if (lex.peek().kind != Tok::IDENT)
+                throw std::runtime_error("Expected identifier in arg list");
+            args.push_back(lex.pop().text);
+        } while (accept(Tok::COMMA));
+    }
+    expect(Tok::RP, "Expected ')'");
+
+    // Add atom to canonical atom store if not already there
+    // return pointer to atom in store
+    return internAtom(id.text, args);
+}
+
+MonoPtr Parser::parseFactor() {
+    if (lex.peek().kind == Tok::IDENT) {
+        return Monomial::fromAtom(parseAtom());
+    }
+    if (lex.peek().kind == Tok::NUMBER) {
+        // treat numeric constant n as n * 1, handled in Polynomial layer
+        int val = std::stoi(lex.pop().text);
+        auto one = std::make_shared<Monomial>(); // empty product == 1
+        auto monoPtr = one;
+        Polynomial dummy;
+        dummy.addTerm(monoPtr, val);            // store constant in dummy
+        // pull the monomial pointer back out (same obj) for caller to use
+        return monoPtr;                         // coeff handled in parseProduct
+    }
+    // throw std::runtime_error("Unexpected token in factor");
+    throw std::runtime_error(
+        "Unexpected token in factor: kind=" +
+        std::to_string(static_cast<int>(lex.peek().kind)) +
+        " text='" + lex.peek().text + "'");
+}
+
+std::pair<bool, Coeff> Parser::parseCoefficient() {
+    if (lex.peek().kind != Tok::NUMBER)
+        return {true, static_cast<Coeff>(1.0)};      // Coeff is now double
+
+    std::string numStr = lex.pop().text;
+    Coeff value = static_cast<Coeff>(std::stod(numStr));   // handles 42, 0.3, .25 …
+
+    if (lex.peek().kind != Tok::STAR)
+        return {false, value};
+
+    accept(Tok::STAR);
+    return {true, value};
+}
+
+
+MonoPtr Parser::parseProduct() {
+    auto m = parseFactor();
+    // Implicit multiplication: IDENT IDENT … or with '*'
+    while (lex.peek().kind == Tok::IDENT || lex.peek().kind == Tok::LP || lex.peek().kind == Tok::STAR) {
+        if (accept(Tok::STAR)) continue;        // consume explicit '*'
+        auto rhs = parseFactor();
+        m = Monomial::multiply(m, rhs);
+    }
+    return m;
+}
+
+Polynomial Parser::parseSum() {
+    Polynomial P;
+    bool neg = false; // handle optional leading sign (+/-)
+    if (accept(Tok::PLUS) || (neg = accept(Tok::MINUS))) {}
+    
+    // parse first object and add its monomial to polynomial
+    auto coef = parseCoefficient();
+    if (coef.first){ // there is following term after coeff
+        auto firstMono = parseProduct(); // process term
+        P.addTerm(firstMono, neg ? -1 * coef.second : 1 * coef.second);
+    } else { // no following term 
+        // add zeroMonomial to represent constant 
+        P.addTerm(Monomial::zeroMon(), neg ? -1 * coef.second : 1 * coef.second);
+    }
+
+    // add remaining terms in the sum
+    while (lex.peek().kind == Tok::PLUS || lex.peek().kind == Tok::MINUS) {
+        neg = accept(Tok::MINUS); 
+        if (!neg) accept(Tok::PLUS);
+        auto coef = parseCoefficient(); 
+        if (coef.first){ // there is term after coeff
+            auto m = parseProduct(); // process term 
+            P.addTerm(m, neg ? -1 * coef.second : 1 * coef.second);
+        } else { // no following term
+            P.addTerm(Monomial::zeroMon(), neg ? -1 * coef.second : 1 * coef.second);
+        }
+    }
+    return P;
+}
+
+Constraint Parser::parse() {
+    Constraint C;
+    // handle distinctness guard like x != y : 
+    std::vector<std::string> vars;               // keeps order of seen variables
+
+    // Handle distinctness guard: x != y
+    if (lex.peek().kind == Tok::IDENT && lex.peekNext().kind == Tok::NEQ) {
+        do {
+            Token a = lex.pop();                // IDENT
+            expect(Tok::NEQ, "need '!=' in guard");
+            Token b = lex.pop();                // IDENT
+
+            C.neq.emplace_back(a.text, b.text);
+
+        } while (accept(Tok::COMMA));
+        expect(Tok::COLON, "missing ':' after guard");
+    }
+
+    // handles the left hand side of the constraint, generating its polynomial representation
+    Polynomial lhs = parseSum();
+
+    Tok compTok = lex.peek().kind;
+    if (compTok == Tok::GE || compTok == Tok::EQ) lex.pop();
+    else throw std::runtime_error("Expected '>=' or '='");
+
+    Polynomial rhs = parseSum();
+
+    // Move rhs to lhs just in case 
+    for (auto [m,c] : rhs.terms) lhs.addTerm(m, -c);
+    C.poly = std::move(lhs);
+    C.cmp  = (compTok == Tok::EQ ? Cmp::EQ0 : Cmp::GE0);
+
+    if (lex.peek().kind != Tok::END)
+        throw std::runtime_error("Unexpected trailing tokens");
+
+    return C;
+}
+
+// Public API
+Constraint parseConstraint(const std::string &text) {
+    Parser p(text);
+    return p.parse();
+}
+
+#pragma endregion // end ConstraintParser
 
 }

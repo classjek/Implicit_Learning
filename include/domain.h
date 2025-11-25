@@ -10,13 +10,23 @@
 
 namespace domain {
 
+using kb::Sym;
+using kb::Coeff;
+using kb::AtomPtr; 
+using kb::Atom;
+using kb::MonoPtr;
+using kb::Monomial;
+using kb::Polynomial;
+using kb::Cmp;
+using kb::Constraint;
+
 // Types of ground symbols in our domain
 enum class SymbolType : std::uint8_t {GENE, ENZYME, REACTION, COMPOUND};
 
 // Global map of predicate names to their argument type signatures.
 inline std::unordered_map<std::string, std::vector<SymbolType>> PREDICATE_SIGNATURES;
 
-struct GroundNames {
+struct GroundNames { // stores TYPED ground names
     std::unordered_set<std::string> genes;
     std::unordered_set<std::string> enzymes;
     std::unordered_set<std::string> reactions;
@@ -26,11 +36,13 @@ struct GroundNames {
 // Initialize the global predicate signatures map
 void initializePredicateSignatures();
 
+// For parsing ProbLog Files, ex: 
+// 0.183::function(g614,ec_4_13).
+// ortholog(g614,g616).             (this is implicitly 1.0::ortholog(g614,g616).)
 class ProbLogParser {
 public:
     ProbLogParser(GroundNames& gn);
     std::vector<kb::Constraint> parseFile(const std::string& filename); 
-
 private:
     GroundNames& groundNames;
 
@@ -48,5 +60,6 @@ private:
     std::string trim(const std::string& s); // trim whitespace 
 };
 
+Constraint parseConstraint(const std::string &text);
 } 
 #endif
