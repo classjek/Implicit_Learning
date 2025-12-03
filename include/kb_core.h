@@ -73,9 +73,8 @@ struct Constraint {
     // what is this used for? 
     std::vector<std::pair<Sym,Sym>> neq;   // var‑var distinctness
     std::vector<std::string> getInputs(const std::unordered_set<Sym>& groundVariables); // Needs to be changed to support types
-    std::unordered_map<SymbolType, int> getTypedInputs() const;
     std::vector<std::pair<SymbolType, std::string>> getOrderedTypedInputs() const; 
-    std::vector<int> groundToAtomIDs(const std::unordered_map<Sym,std::string>& substitution, std::unordered_map<Sym,int>& groundMap) const;
+    std::vector<int> groundToAtomIDs(const std::unordered_map<Sym,std::string>& substitution, std::unordered_map<size_t,int>& groundMap) const;
     void groundConstraint(std::unordered_map<Sym,int>& groundMap, const std::vector<std::string>& perm, const std::unordered_set<Sym>& groundVariables, std::string& resultString, std::vector<int>& resultVec);
     bool operator==(const Constraint& o) const noexcept;
 };
