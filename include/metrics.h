@@ -1,10 +1,11 @@
 #pragma once
-#include <cstddef>
-#include <string>
+
 #include <chrono>
+#include <cstddef>
 #include <iostream>
-#include <vector>
 #include <ostream>
+#include <string>
+#include <vector>
 
 namespace metrics {
 

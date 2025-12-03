@@ -1,10 +1,10 @@
 #include "metrics.h"
 
+#include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <sys/resource.h>
 #include <unistd.h>
-#include <cstdio>
 
 namespace metrics {
 

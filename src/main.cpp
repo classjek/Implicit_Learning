@@ -1,12 +1,12 @@
-#include "executor.h"
-#include "config.h"
-#include "domain.h"
-#include "metrics.h"
-
 #include <iostream>
 #include <fstream>
 #include <cmath>
 #include <typeinfo> // for debugging, can remove later
+
+#include "config.h"
+#include "domain.h"
+#include "executor.h"
+#include "metrics.h"
 
 // int main(int argc, char** argv) {
 int main() {
