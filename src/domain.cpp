@@ -466,7 +466,7 @@ Constraint parseConstraint(const std::string &text) {
 //     // Actual implementation would map the grounding to indices and store in resultVec
 // }
 void groundConstraint(const kb::Constraint& constraint, const std::vector<std::pair<SymbolType, std::string>>& orderedTypedInputs, 
-    const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<std::string, int>& groundMap, std::vector<std::vector<int>>& constraintGroundings) {
+     const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<size_t, int>& groundMap, std::vector<std::vector<int>>& constraintGroundings) {
 
         std::unordered_map<SymbolType, int> typeCounter; 
         std::unordered_map<std::string, std::string> substitution; 
@@ -495,7 +495,7 @@ void groundConstraint(const kb::Constraint& constraint, const std::vector<std::p
         constraintGroundings.push_back(atomIDs);
 }
 
-void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<Sym,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
+void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<size_t,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
     std::cout << "Called generateGrounding" << std::endl;
 
     std::vector<std::pair<SymbolType, std::string>> orderedTypedInputs = constraints[0].getOrderedTypedInputs(); 
@@ -542,9 +542,6 @@ void generateGrounding(const std::vector<kb::Constraint>& constraints, const std
     if (!typeSequence.empty()) {
         dfs(0, typeSequence[0].second);
     }
-
-    // still need to implement groundConstraint, but done besides that
-    //      groundConstraint will be passed informattion in a way where types are explicit
 }
 
 

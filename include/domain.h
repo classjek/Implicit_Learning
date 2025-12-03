@@ -63,7 +63,7 @@ private:
 
 Constraint parseConstraint(const std::string &text);
 
-void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<Sym,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec);
+void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<size_t,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec);
 
 } 
 #endif

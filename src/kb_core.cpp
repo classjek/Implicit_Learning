@@ -302,32 +302,6 @@ std::vector<std::string> Constraint::getInputs(const std::unordered_set<Sym>& gr
     return inputs;
 }
 
-std::unordered_map<SymbolType, int> Constraint::getTypedInputs() const{
-    std::unordered_set<std::string> inputSet; 
-    std::unordered_map<SymbolType, int> inputMap;
-    for (const auto& term : poly.terms) { // each term is a monomial
-        for (const auto& monoItem : term.first->items) {
-            for (const auto& arg : monoItem.first->args) {
-                // already counted
-                if (inputSet.find(arg) != inputSet.end()) continue;
-                if (arg.find("gene") == 0) {
-                    inputMap[SymbolType::GENE]++;
-                } else if (arg.find("enzyme") == 0) {
-                    inputMap[SymbolType::ENZYME]++;
-                } else if (arg.find("reaction") == 0) {
-                    inputMap[SymbolType::REACTION]++;
-                } else if (arg.find("compound") == 0) {
-                    inputMap[SymbolType::COMPOUND]++;
-                } else {
-                    throw std::runtime_error("Unknown symbol type for argument: " + arg);
-                }
-                inputSet.insert(arg); 
-            }
-        }
-    }
-    return inputMap;
-}
-
 std::vector<std::pair<SymbolType, std::string>> Constraint::getOrderedTypedInputs() const {
     std::vector<std::pair<SymbolType, std::string>> result; 
     std::unordered_set<std::string> seen; 
@@ -358,9 +332,12 @@ std::vector<std::pair<SymbolType, std::string>> Constraint::getOrderedTypedInput
     return result; 
 }
 
-std::vector<int> Constraint::groundToAtomIDs(const std::unordered_map<Sym,std::string>& substitution, std::unordered_map<Sym,int>& groundMap) const {
+std::vector<int> Constraint::groundToAtomIDs(const std::unordered_map<Sym,std::string>& substitution, std::unordered_map<size_t,int>& groundMap) const {
     std::vector<int> atomIDs; 
     for (const auto& term : poly.terms) {
+        // skip over zero terms -> constants in constraints like 1 in "friends(x,y)-1>0"
+        if (term.first->isZero()) continue;
+
         for (const auto& monoItem : term.first->items) {
             const auto& atom = monoItem.first; 
             std::string groundAtomStr = atom->rel + '(';
@@ -379,18 +356,21 @@ std::vector<int> Constraint::groundToAtomIDs(const std::unordered_map<Sym,std::s
                 }
             }
             groundAtomStr += ")"; 
-            // Now look up groundAtomStr in groundMap
-            auto mapIt = groundMap.find(groundAtomStr); 
+            // Hash resulting string and look it up in groundMap
+            size_t hashValue = std::hash<std::string>{}(groundAtomStr);
+            auto mapIt = groundMap.find(hashValue); 
             int atomID; 
 
             if (mapIt == groundMap.end()) {
                 // ground atom hasn't been seen before
                 // assign it to next available ID
                 atomID = static_cast<int>(groundMap.size());
-                groundMap[groundAtomStr] = atomID; 
+                groundMap[hashValue] = atomID; 
             } else {
                 atomID = mapIt->second; 
             }
+            // if (atomID%1000 == 0 ) { std::cout << "AtomID: " << atomID << std::endl; }
+            //std::cout << "Ground Atom: " << groundAtomStr << " -> AtomID: " << atomID << std::endl;
             atomIDs.push_back(atomID);
         }
     }

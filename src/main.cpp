@@ -65,31 +65,38 @@ int main() {
   // std::cout << "Universal constraints added: " << universal_constraints.size() << std::endl;
   std::cout << '\n' << "Printing All Constraints(" << universal_constraints.size() << "):" << std::endl;
   for (size_t i = 0; i < universal_constraints.size(); i++) {
-      std::cout << "    constraint[" << i << "] takes " << "6" << " args: "  << universal_constraints[i].poly.toString() << " " << (universal_constraints[i].cmp == kb::Cmp::GE0 ? ">=" : "=") << " 0\n";
+      std::cout << "    constraint[" << i << "] takes " << "4" << " args: "  << universal_constraints[i].poly.toString() << " " << (universal_constraints[i].cmp == kb::Cmp::GE0 ? ">=" : "=") << " 0\n";
   }
-  // std::cout << "Testing: " << universal_constraints[0].getTypedInputs() << std::endl;
-  auto typedInputs = universal_constraints[0].getTypedInputs();
-  for (const auto& [symType, count] : typedInputs) {
-    std::cout << static_cast<int>(symType) << " " << count << std::endl;
-  }
+  
 
-std::unordered_map<std::string,int> groundMap; 
+std::unordered_map<size_t,int> groundMap; 
 std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.size());
 
-typedGroundNames[0] = {"geneA", "geneB"};
-typedGroundNames[1] = {"enzymeX", "enzymeY"};
-typedGroundNames[2] = {"reaction1", "reaction2"};
-typedGroundNames[3] = {"compoundM", "compoundN"};
+// Build smaller set of groundNames for testing
+std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+400);
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+400);
+groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+400);
+groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+200);
+for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
+std::cout << std::endl;
 
 // to avoid storing partially ground results, use nested DFS
 // consider one constraint at a time, generate all partial observations for it
 // So we have a function that, given a constraint, returns what it takes as input 
-domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults);
+// domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults);
+domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
+
+cp.tick("After grounding"); 
 
 std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
 std::cout << "finalResults size: " << finalResults.size() << std::endl;
 std::cout << "finalResults[0] size: " << finalResults[0].size() << std::endl;
 std::cout << "finalResults[1] size: " << finalResults[1].size() << std::endl;
+
+// discard groundMap
+groundMap.clear();
+groundMap = std::unordered_map<size_t, int>();
 
 
   int num_observations = 6;
