@@ -3,6 +3,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <iostream>
+#include <functional> 
 
 namespace domain {
 
@@ -451,4 +453,100 @@ Constraint parseConstraint(const std::string &text) {
 
 #pragma endregion // end ConstraintParser
 
+#pragma region Grounding
+
+// void groundConstraint(const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<Sym,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
+//     // placeholder implementation
+//     //std::cout << "Called groundConstraint with grounding size: " << grounding.size() << std::endl;
+//     for (const auto& [symType, name] : grounding) {
+//         // std::cout << static_cast<int>(symType) << ": " << name << ", ";
+//         std::cout << name << ", ";
+//     }
+//     std::cout << std::endl;
+//     // Actual implementation would map the grounding to indices and store in resultVec
+// }
+void groundConstraint(const kb::Constraint& constraint, const std::vector<std::pair<SymbolType, std::string>>& orderedTypedInputs, 
+    const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<std::string, int>& groundMap, std::vector<std::vector<int>>& constraintGroundings) {
+
+        std::unordered_map<SymbolType, int> typeCounter; 
+        std::unordered_map<std::string, std::string> substitution; 
+
+        for (const auto& [type, varName] : orderedTypedInputs) {
+            // skip if we've already mapped this variable
+            if (substitution.find(varName) != substitution.end()) {
+                continue; 
+            }
+
+            int targetIdx = typeCounter[type]; 
+            int currentIdx = 0; 
+
+            for (const auto& [gType, gName] : grounding) {
+                if (gType == type) {
+                    if (currentIdx == targetIdx) {
+                        substitution[varName] = gName; 
+                        break;
+                    }
+                    currentIdx++; 
+                }
+            }
+            typeCounter[type]++;
+        }
+        std::vector<int> atomIDs = constraint.groundToAtomIDs(substitution, groundMap);
+        constraintGroundings.push_back(atomIDs);
+}
+
+void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<Sym,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
+    std::cout << "Called generateGrounding" << std::endl;
+
+    std::vector<std::pair<SymbolType, std::string>> orderedTypedInputs = constraints[0].getOrderedTypedInputs(); 
+
+    // Build type sequence: vector of (SymbolType, count)
+    std::vector<std::pair<SymbolType, int>> typeSequence;
+    std::unordered_map<SymbolType,int> countMap; 
+    for (const auto& [symType, name] : orderedTypedInputs) {
+        countMap[symType]++;
+    }
+    for (const auto& [symType, count] : countMap) {
+        typeSequence.push_back({symType, count}); 
+    } 
+    
+    // grounding that we'll build up 
+    std::vector<std::pair<SymbolType, std::string>> grounding; 
+    
+    // nested DFS function to generate all type-aware groundings
+    std::function<void(int, int)> dfs = [&](int typeIdx, int countRemaining) -> void {
+        //  Base case 1: finished with all types - have full grounding 
+        if (typeIdx >= static_cast<int>(typeSequence.size())) {
+            //groundConstraint(grounding, groundMap, resultVec);
+            groundConstraint(constraints[0], orderedTypedInputs, grounding, groundMap, resultVec[0]);  
+            return; 
+        }
+        // Base case 2: finished with current type - move to next type
+        if (countRemaining == 0) {
+            dfs(typeIdx + 1, typeSequence[typeIdx + 1].second);
+            return;
+        }
+        // recursive case: pick a name of the current type
+        SymbolType currentType = typeSequence[typeIdx].first; 
+
+        // Loop through all available names for this type
+        for (const std::string& name : typedGroundNames[static_cast<int>(currentType)]) {
+            // add to grounding 
+            grounding.push_back({currentType, name}); 
+            // recurse with one less to pick of this type
+            dfs(typeIdx, countRemaining - 1);
+            grounding.pop_back(); 
+        }
+    };
+
+    if (!typeSequence.empty()) {
+        dfs(0, typeSequence[0].second);
+    }
+
+    // still need to implement groundConstraint, but done besides that
+    //      groundConstraint will be passed informattion in a way where types are explicit
+}
+
+
+#pragma endregion
 }
