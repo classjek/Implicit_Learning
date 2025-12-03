@@ -302,6 +302,101 @@ std::vector<std::string> Constraint::getInputs(const std::unordered_set<Sym>& gr
     return inputs;
 }
 
+std::unordered_map<SymbolType, int> Constraint::getTypedInputs() const{
+    std::unordered_set<std::string> inputSet; 
+    std::unordered_map<SymbolType, int> inputMap;
+    for (const auto& term : poly.terms) { // each term is a monomial
+        for (const auto& monoItem : term.first->items) {
+            for (const auto& arg : monoItem.first->args) {
+                // already counted
+                if (inputSet.find(arg) != inputSet.end()) continue;
+                if (arg.find("gene") == 0) {
+                    inputMap[SymbolType::GENE]++;
+                } else if (arg.find("enzyme") == 0) {
+                    inputMap[SymbolType::ENZYME]++;
+                } else if (arg.find("reaction") == 0) {
+                    inputMap[SymbolType::REACTION]++;
+                } else if (arg.find("compound") == 0) {
+                    inputMap[SymbolType::COMPOUND]++;
+                } else {
+                    throw std::runtime_error("Unknown symbol type for argument: " + arg);
+                }
+                inputSet.insert(arg); 
+            }
+        }
+    }
+    return inputMap;
+}
+
+std::vector<std::pair<SymbolType, std::string>> Constraint::getOrderedTypedInputs() const {
+    std::vector<std::pair<SymbolType, std::string>> result; 
+    std::unordered_set<std::string> seen; 
+
+    for (const auto& term : poly.terms) { 
+        for (const auto& monoItem : term.first->items) {
+            for (const auto& arg : monoItem.first->args) {
+                if (seen.find(arg) != seen.end()) continue; 
+
+                SymbolType type; 
+                if (arg.find("gene") == 0) {
+                    type = SymbolType::GENE;
+                } else if (arg.find("enzyme") == 0) {
+                    type = SymbolType::ENZYME;
+                } else if (arg.find("reaction") == 0) {
+                    type = SymbolType::REACTION;
+                } else if (arg.find("compound") == 0) {
+                    type = SymbolType::COMPOUND;
+                } else {
+                    throw std::runtime_error("Unknown symbol type for argument: " + arg);
+                }
+
+                result.push_back({type, arg}); 
+                seen.insert(arg); 
+            }
+        }
+    }
+    return result; 
+}
+
+std::vector<int> Constraint::groundToAtomIDs(const std::unordered_map<Sym,std::string>& substitution, std::unordered_map<Sym,int>& groundMap) const {
+    std::vector<int> atomIDs; 
+    for (const auto& term : poly.terms) {
+        for (const auto& monoItem : term.first->items) {
+            const auto& atom = monoItem.first; 
+            std::string groundAtomStr = atom->rel + '(';
+
+            for (std::size_t i = 0; i < atom->args.size(); i++) {
+                const auto& arg = atom->args[i];
+
+                auto it = substitution.find(arg); 
+                if (it == substitution.end()) {
+                    throw std::runtime_error("Substitution missing argument: " + arg); 
+                }
+                groundAtomStr += it->second;
+                // add comma between arguments but not after last one
+                if (i < atom->args.size() -1) {
+                    groundAtomStr += ","; 
+                }
+            }
+            groundAtomStr += ")"; 
+            // Now look up groundAtomStr in groundMap
+            auto mapIt = groundMap.find(groundAtomStr); 
+            int atomID; 
+
+            if (mapIt == groundMap.end()) {
+                // ground atom hasn't been seen before
+                // assign it to next available ID
+                atomID = static_cast<int>(groundMap.size());
+                groundMap[groundAtomStr] = atomID; 
+            } else {
+                atomID = mapIt->second; 
+            }
+            atomIDs.push_back(atomID);
+        }
+    }
+    return atomIDs; 
+}
+
 void Constraint::groundConstraint(std::unordered_map<Sym,int>& groundMap, const std::vector<std::string>& perm, const std::unordered_set<Sym>& groundVariables, std::string& resultString, std::vector<int>& resultVec){
     std::vector<std::string> inputs = getInputs(groundVariables);
     if (inputs.size() != perm.size()){ 

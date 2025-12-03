@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <typeinfo> // for debugging, can remove later
 
 // int main(int argc, char** argv) {
 int main() {
@@ -32,6 +33,12 @@ int main() {
   std::cout << "Parsed " << constraints.size() << " constraints" << std::endl;
   std::cout << "Ground Genes: " << groundNames.genes.size() << " , Enzymes: " << groundNames.enzymes.size() 
             << " , Reactions: " << groundNames.reactions.size() << " , Compounds: " << groundNames.compounds.size() << std::endl;
+  // Convert to vector of strings
+  std::vector<std::vector<std::string>> typedGroundNames;
+  typedGroundNames.push_back(std::vector<std::string>(groundNames.genes.begin(), groundNames.genes.end()));
+  typedGroundNames.push_back(std::vector<std::string>(groundNames.enzymes.begin(), groundNames.enzymes.end()));
+  typedGroundNames.push_back(std::vector<std::string>(groundNames.reactions.begin(), groundNames.reactions.end()));
+  typedGroundNames.push_back(std::vector<std::string>(groundNames.compounds.begin(), groundNames.compounds.end()));
 
   // Read in Universally Quantified Constraints
   std::ifstream in("../data/universalConstraints.txt");   
@@ -56,10 +63,33 @@ int main() {
   }
   in.close();
   // std::cout << "Universal constraints added: " << universal_constraints.size() << std::endl;
-  std::cout << '\n' << "Printing All Constraints(" << constraints.size() << "):" << std::endl;
+  std::cout << '\n' << "Printing All Constraints(" << universal_constraints.size() << "):" << std::endl;
   for (size_t i = 0; i < universal_constraints.size(); i++) {
       std::cout << "    constraint[" << i << "] takes " << "6" << " args: "  << universal_constraints[i].poly.toString() << " " << (universal_constraints[i].cmp == kb::Cmp::GE0 ? ">=" : "=") << " 0\n";
   }
+  // std::cout << "Testing: " << universal_constraints[0].getTypedInputs() << std::endl;
+  auto typedInputs = universal_constraints[0].getTypedInputs();
+  for (const auto& [symType, count] : typedInputs) {
+    std::cout << static_cast<int>(symType) << " " << count << std::endl;
+  }
+
+std::unordered_map<std::string,int> groundMap; 
+std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.size());
+
+typedGroundNames[0] = {"geneA", "geneB"};
+typedGroundNames[1] = {"enzymeX", "enzymeY"};
+typedGroundNames[2] = {"reaction1", "reaction2"};
+typedGroundNames[3] = {"compoundM", "compoundN"};
+
+// to avoid storing partially ground results, use nested DFS
+// consider one constraint at a time, generate all partial observations for it
+// So we have a function that, given a constraint, returns what it takes as input 
+domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults);
+
+std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
+std::cout << "finalResults size: " << finalResults.size() << std::endl;
+std::cout << "finalResults[0] size: " << finalResults[0].size() << std::endl;
+std::cout << "finalResults[1] size: " << finalResults[1].size() << std::endl;
 
 
   int num_observations = 6;
