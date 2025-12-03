@@ -1,4 +1,5 @@
 #include "kb_core.h"
+
 #include <iostream>
 #include <stdexcept>
 

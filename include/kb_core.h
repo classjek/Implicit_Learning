@@ -1,14 +1,16 @@
 #pragma once
+
+#include <algorithm>
 #include <cstdint>
-#include <vector>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
-#include <map>
 #include <unordered_set>
-#include <mutex>
 #include <utility>
-#include <algorithm>
-#include <memory>
+#include <vector>
+
 
 namespace kb {
 

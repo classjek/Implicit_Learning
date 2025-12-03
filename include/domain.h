@@ -1,11 +1,12 @@
 #ifndef DOMAIN_H
 #define DOMAIN_H
 
+#include <cstdint>
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <cstdint>
+#include <vector>
+
 #include "kb_core.h"
 
 namespace domain {

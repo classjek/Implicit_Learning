@@ -1,10 +1,12 @@
 #include "domain.h"
-#include "kb_core.h"
+
 #include <fstream>
+#include <functional> 
+#include <iostream>
 #include <stdexcept>
 #include <unordered_map>
-#include <iostream>
-#include <functional> 
+
+#include "kb_core.h"
 
 namespace domain {
 
