@@ -77,7 +77,7 @@ std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
 groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+400);
 groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+400);
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+400);
-groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+200);
+groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+400);
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 std::cout << std::endl;
 
@@ -86,17 +86,32 @@ std::cout << std::endl;
 // So we have a function that, given a constraint, returns what it takes as input 
 // domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults);
 domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
-
 cp.tick("After grounding"); 
+
+std::vector<int> polyWidth; // holds the number of arguments taken by polynomial i
+std::vector<int> gndOff; // holds offset used to access the gndData for each polynomial
+std::vector<int> gndData; // every valid grounding vector, stored contiguously
+domain::createGroundingRepresentation(finalResults, polyWidth, gndOff, gndData);
+cp.tick("After Sparse Rep"); 
 
 std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
 std::cout << "finalResults size: " << finalResults.size() << std::endl;
 std::cout << "finalResults[0] size: " << finalResults[0].size() << std::endl;
 std::cout << "finalResults[1] size: " << finalResults[1].size() << std::endl;
 
+std::cout << "\nSparse Represenation:" << std::endl;
+for (size_t i = 0; i < polyWidth.size(); i++) {
+    std::cout << "Poly " << i << ": width=" << polyWidth[i] << ", offset=" << gndOff[i] << std::endl;
+}
+
+
 // discard groundMap
 groundMap.clear();
 groundMap = std::unordered_map<size_t, int>();
+// discard finalResults
+finalResults.clear(); 
+finalResults.shrink_to_fit();
+cp.tick("After clearing");
 
 
   int num_observations = 6;

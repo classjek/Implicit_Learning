@@ -498,29 +498,32 @@ void groundConstraint(const kb::Constraint& constraint, const std::vector<std::p
 }
 
 void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<size_t,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
-    std::cout << "Called generateGrounding" << std::endl;
+    std::cout << "Called generateGrounding on all Constraints" << std::endl;
+    resultVec.resize(constraints.size());
 
-    std::vector<std::pair<SymbolType, std::string>> orderedTypedInputs = constraints[0].getOrderedTypedInputs(); 
+    // for all constraints
+    for (size_t i = 0; i < constraints.size(); i++) {
+        // get input information for this constraint
+        std::vector<std::pair<SymbolType, std::string>> orderedTypedInputs = constraints[i].getOrderedTypedInputs(); 
+        std::vector<std::pair<SymbolType, int>> typeSequence;
+        std::unordered_map<SymbolType,int> countMap; 
 
-    // Build type sequence: vector of (SymbolType, count)
-    std::vector<std::pair<SymbolType, int>> typeSequence;
-    std::unordered_map<SymbolType,int> countMap; 
-    for (const auto& [symType, name] : orderedTypedInputs) {
-        countMap[symType]++;
-    }
-    for (const auto& [symType, count] : countMap) {
-        typeSequence.push_back({symType, count}); 
-    } 
-    
-    // grounding that we'll build up 
-    std::vector<std::pair<SymbolType, std::string>> grounding; 
-    
-    // nested DFS function to generate all type-aware groundings
-    std::function<void(int, int)> dfs = [&](int typeIdx, int countRemaining) -> void {
+        for (const auto& [symType, name] : orderedTypedInputs) {
+            countMap[symType]++;
+        }
+        for (const auto& [symType, count] : countMap) {
+            typeSequence.push_back({symType, count}); 
+        } 
+
+        // grounding that we'll build up 
+        std::vector<std::pair<SymbolType, std::string>> grounding; 
+
+        // nested DFS function to generate all type-aware groundings
+        std::function<void(int, int)> dfs = [&](int typeIdx, int countRemaining) -> void {
         //  Base case 1: finished with all types - have full grounding 
         if (typeIdx >= static_cast<int>(typeSequence.size())) {
             //groundConstraint(grounding, groundMap, resultVec);
-            groundConstraint(constraints[0], orderedTypedInputs, grounding, groundMap, resultVec[0]);  
+            groundConstraint(constraints[i], orderedTypedInputs, grounding, groundMap, resultVec[i]);  
             return; 
         }
         // Base case 2: finished with current type - move to next type
@@ -538,11 +541,32 @@ void generateGrounding(const std::vector<kb::Constraint>& constraints, const std
             // recurse with one less to pick of this type
             dfs(typeIdx, countRemaining - 1);
             grounding.pop_back(); 
-        }
-    };
+            }
+        };
 
-    if (!typeSequence.empty()) {
-        dfs(0, typeSequence[0].second);
+
+        if (!typeSequence.empty()) {
+            dfs(0, typeSequence[0].second);
+        }
+    }
+}
+
+void createGroundingRepresentation(const std::vector<std::vector<std::vector<int>>>& finalResults, std::vector<int>& polyWidth, std::vector<int>& gndOff, std::vector<int>& gndData) {
+    // make up for dummy objective function: first constraint, takes no arguments
+    polyWidth.push_back(0);
+    gndOff.push_back(0);
+
+    for (const auto& constraint : finalResults) {
+        // add number of arguments taken for given constraint
+        polyWidth.push_back(constraint.empty() ? 0 : static_cast<int>(constraint[0].size()));
+        // offset for this constraint
+        gndOff.push_back(static_cast<int>(gndData.size()));
+        // add all groudings for this constraint
+        for (const auto& grounding : constraint) {
+            for (int atomID : grounding) {
+                gndData.push_back(atomID);
+            }
+        }
     }
 }
 
