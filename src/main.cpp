@@ -81,11 +81,9 @@ groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 std::cout << std::endl;
 
-// to avoid storing partially ground results, use nested DFS
-// consider one constraint at a time, generate all partial observations for it
-// So we have a function that, given a constraint, returns what it takes as input 
-// domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults);
+// ground universally quantified constraints
 domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
+// TODO: add in ground facts from Problog
 cp.tick("After grounding"); 
 
 std::vector<int> polyWidth; // holds the number of arguments taken by polynomial i

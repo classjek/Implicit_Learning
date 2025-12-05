@@ -497,6 +497,8 @@ void groundConstraint(const kb::Constraint& constraint, const std::vector<std::p
         constraintGroundings.push_back(atomIDs);
 }
 
+// Later on, this can be made parallel per constraint
+// but DFS is the main bottleneck here, so that will only help if we have many constraints
 void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<size_t,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
     std::cout << "Called generateGrounding on all Constraints" << std::endl;
     resultVec.resize(constraints.size());

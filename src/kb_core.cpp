@@ -46,6 +46,9 @@ bool Atom::operator<(const Atom& o) const noexcept {
 bool Atom::operator==(const Atom& o) const noexcept {
     return rel == o.rel && args == o.args;
 }
+bool Atom::operator!=(const Atom& o) const noexcept {
+    return !(*this == o); 
+}
 
 // Monomial Helpers
 void Monomial::canonicalize() {
