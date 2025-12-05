@@ -36,13 +36,15 @@
 void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     
     //cout << "test" << endl;
-    char pname[11];
-    strcpy(pname, "../data/param.sdpa");
-    char *pname_ptr = &(pname[0]);
+    // char pname[11];
+    // strcpy(pname, "../data/param.sdpa");
+    // char *pname_ptr = &(pname[0]);
     //printf("%s\n", pname);
     //FILE* fpresult;
     //fpresult=fopen("test.out", "r");
-    Problem.readParameter(pname_ptr);
+    // Problem.readParameter(pname_ptr);
+    std::string pname = "../data/param.sdpa";
+    Problem.readParameter(const_cast<char*>(pname.c_str()));
     //strcpy(Problem.ParameterFileName,"param.sdpa");
     //Problem.ParameterFile = fopen(Problem.ParameterFileName,"r");
     //cout << "1" <<endl;
