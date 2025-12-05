@@ -95,15 +95,16 @@ cp.tick("After Sparse Rep");
 std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
 std::cout << "finalResults size: " << finalResults.size() << std::endl;
 std::cout << "finalResults[0] size: " << finalResults[0].size() << std::endl;
-std::cout << "finalResults[1] size: " << finalResults[1].size() << std::endl;
+std::cout << "finalResults[1] size: " << finalResults[1].size() << "\n" <<std::endl;
 
-std::cout << "\nSparse Represenation:" << std::endl;
-for (size_t i = 0; i < polyWidth.size(); i++) {
-    std::cout << "Poly " << i << ": width=" << polyWidth[i] << ", offset=" << gndOff[i] << std::endl;
-}
+// std::cout << "\nSparse Represenation:" << std::endl;
+// for (size_t i = 0; i < polyWidth.size(); i++) {
+//     std::cout << "Poly " << i << ": width=" << polyWidth[i] << ", offset=" << gndOff[i] << std::endl;
+// }
 
-int numVariables = groundMap.size(); // number of new variables 
-int numGroundConstraints = finalResults.size(); // number of grounded constraints
+int newNumVars = groundMap.size(); // number of new variables 
+int newNumConst = 0; // number of grounded constraints
+for (const auto& constr : finalResults) { newNumConst += constr.size(); }
 
 // discard groundMap
 groundMap.clear();
@@ -115,10 +116,13 @@ cp.tick("After clearing");
 
 // extract constraint format from grounded constraints and include that here
 // I believe writeGMS fills in with bounds that will all be replaced later, TODO: confirm
-domain::writeGMSFile(universal_constraints);
+std::string fileName = domain::writeGMSFile(universal_constraints);
 
 /// Interfacing with SparsePOP /// 
-std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(numVariables, numGroundConstraints, polyWidth, gndOff, gndData);
+std::cout << "Solving with SparsePOP..." << std::endl;
+std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData);
+
+solveWithSparsePOP(fileName, fromGen);
 
 int num_observations = 6;
 cfg.omp_threads = std::floor(36 / num_observations);

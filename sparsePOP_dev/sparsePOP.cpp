@@ -37,7 +37,7 @@ void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     
     //cout << "test" << endl;
     char pname[11];
-    strcpy(pname, "param.sdpa");
+    strcpy(pname, "../data/param.sdpa");
     char *pname_ptr = &(pname[0]);
     //printf("%s\n", pname);
     //FILE* fpresult;
@@ -134,17 +134,6 @@ void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     Problem.setInitPoint(false);
 	Problem.setNumThreads(0);	
 	cout << "## SDPA uses " << Problem.getNumThreads() << " threads." <<endl;
-    //cout << "11" <<endl;
-    /*
-     * char oname[9];
-     * strcpy(oname, "test.out");
-     * char *oname_ptr = &(oname[0]);
-     * printf("%s\n", pname);
-     * char oform[6];
-     * strcpy(oform,"%5.3e");
-     * char *oform_ptr = &(oform[0]);
-     * Problem.writeInputSparse(oname_ptr, oform_ptr);
-     */
 }
 
 /* Input results of SDPA */
@@ -195,7 +184,9 @@ void makeSDPr(class s3r &POP, class mysdp & sdpdata, class Info & info, string &
     inputGMS(POP.Polysys, pname);
     //cout << "reading input finished. " << endl;
     /* read param file */
-    POP.param.SetParameters("param.pop", POP.Polysys.dimVar);
+    // POP.param.SetParameters("param.pop", POP.Polysys.dimVar);
+    POP.param.SetParameters("../data/param.pop", POP.Polysys.dimVar);
+
 
     int maxD = POP.Polysys.polynomial[0].degree;
     for(int i=1; i<POP.Polysys.numSys; i++){

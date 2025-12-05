@@ -31,7 +31,9 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
     // Solve with SDPA
     if(POP.param.SDPsolverSW == 1 && info.infeasibleSW == 0) {
         SDPA Problem;
+        std::cout << "Before calling MakeSDPAform " << std::endl;
         MakeSDPAform(sdpdata, Problem);
+        std::cout << "After calling MakeSDPAform " << std::endl;
         
         Problem.setDisplay(NULL);
         Problem.initializeSolve();
