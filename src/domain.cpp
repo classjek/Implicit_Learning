@@ -1,5 +1,6 @@
 #include "domain.h"
 
+#include <cstdio>
 #include <fstream>
 #include <functional> 
 #include <iostream>
@@ -571,6 +572,80 @@ void createGroundingRepresentation(const std::vector<std::vector<std::vector<int
         }
     }
 }
+
+std::map<std::string, std::string> relVarMap(const std::vector<kb::Constraint>& constraints){
+    std::map<Sym, std::string> rel2var;
+    int varIdx = 0;
+    for (const auto& c : constraints) {
+        for (const auto& [monoPtr, coeff] : c.poly.terms) {
+            for (auto ap : monoPtr->notExpandedAtoms()) {
+                const Sym& r = ap->rel; // consider relation r
+                if (r.empty()) continue; // if r is empty, skip it
+                if (rel2var.find(r) == rel2var.end()) { // if r not present in map
+                    rel2var[r] = "x" + std::to_string(varIdx++);  
+                }
+            }
+        }
+    }
+    return rel2var; 
+}
+
+void writeGMSFile(const std::vector<kb::Constraint>& constraints){
+    std::map<std::string, std::string> rel2var = relVarMap(constraints);
+
+    // Constraint Lines //
+    std::vector<std::string> gmsConstraints; 
+    for (const auto& constraint : constraints){
+        std::string gmsStr = constraint.poly.toStringWithMap(rel2var);
+        if (constraint.cmp == Cmp::GE0) {
+            gmsStr += " =G= 0 ;" ;
+        } else {
+            gmsStr += " =E= 0 ;";
+        }
+        gmsConstraints.push_back(gmsStr);
+    }
+    // Variables Line //
+    // Knowing that variables are 0-indexed (relVarMap)
+    std::string varLine = "Variables ";
+    for (size_t i = 0; i < rel2var.size(); i++){
+        varLine += "x" + std::to_string(i) + ", ";
+    } 
+    // Equation Line and Equations //
+    std::string eqLine = "Equations ";
+    std::string eqs; 
+    // Add dummy obj function: objvar = 0
+    varLine += "objvar ;"; 
+    eqLine += "obj, ";
+    eqs += "obj.. objvar =E= 0 ;\n";
+    int idx = 1; 
+    for (const auto& gconstraint : gmsConstraints){
+        eqLine += "c" + std::to_string(idx) + ", ";
+        eqs += "c" + std::to_string(idx++) + ".. " + gconstraint + '\n';
+    }
+    std::string boundLine; 
+    int low = 0; 
+    int up = 1;
+    int objlow = -1;
+    int objup = 1;
+    for (const auto& [sym, var] : rel2var) {
+        boundLine += var + ".lo = " + std::to_string(low) + " ;\n";
+        boundLine += var + ".up = " + std::to_string(up) + " ;\n";
+    }
+    boundLine += "objvar.lo = " + std::to_string(objlow) + ";\n" + "objvar.up = " + std::to_string(objup) + ";";
+
+    // Write to tmp file
+    std::string tmpFile = "/tmp/sparsepop_input.gms"; 
+    std::ofstream out(tmpFile); 
+    if (!out) {
+        throw std::runtime_error("Cannot open .gms file: " + tmpFile);
+    }
+    out << varLine << std::endl;
+    out << std::string_view(eqLine.data(), eqLine.size()-2) << " ;\n" << std::endl;
+    out << eqs << std::endl;
+    out << boundLine << std::endl;
+    out.close(); 
+}
+
 
 
 #pragma endregion

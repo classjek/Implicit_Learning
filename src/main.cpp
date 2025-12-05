@@ -7,6 +7,7 @@
 #include "domain.h"
 #include "executor.h"
 #include "metrics.h"
+#include "spop.h"
 
 // int main(int argc, char** argv) {
 int main() {
@@ -68,16 +69,15 @@ int main() {
       std::cout << "    constraint[" << i << "] takes " << "4" << " args: "  << universal_constraints[i].poly.toString() << " " << (universal_constraints[i].cmp == kb::Cmp::GE0 ? ">=" : "=") << " 0\n";
   }
   
-
 std::unordered_map<size_t,int> groundMap; 
 std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.size());
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+400);
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+400);
-groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+400);
-groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+400);
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+3);
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+3);
+groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+3);
+groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+3);
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 std::cout << std::endl;
 
@@ -102,6 +102,8 @@ for (size_t i = 0; i < polyWidth.size(); i++) {
     std::cout << "Poly " << i << ": width=" << polyWidth[i] << ", offset=" << gndOff[i] << std::endl;
 }
 
+int numVariables = groundMap.size(); // number of new variables 
+int numGroundConstraints = finalResults.size(); // number of grounded constraints
 
 // discard groundMap
 groundMap.clear();
@@ -111,21 +113,27 @@ finalResults.clear();
 finalResults.shrink_to_fit();
 cp.tick("After clearing");
 
+// extract constraint format from grounded constraints and include that here
+// I believe writeGMS fills in with bounds that will all be replaced later, TODO: confirm
+domain::writeGMSFile(universal_constraints);
 
-  int num_observations = 6;
-  cfg.omp_threads = std::floor(36 / num_observations);
+/// Interfacing with SparsePOP /// 
+std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(numVariables, numGroundConstraints, polyWidth, gndOff, gndData);
 
-  std::cout << "\nThreads: " << cfg.omp_threads << std::endl;
-  // Later pass vector of partialobservations and equivalence class map to executor
-  Executor ex(cfg);
+int num_observations = 6;
+cfg.omp_threads = std::floor(36 / num_observations);
 
-  // run should return information about bounds of each equivalence class per partial observation
-  // Depends how equivalence classes are stored
-  int rc = ex.run();
-  std::cout << "[main] done, rc=" << rc << "\n" << std::endl;
+std::cout << "\nThreads: " << cfg.omp_threads << std::endl;
+// Later pass vector of partialobservations and equivalence class map to executor
+Executor ex(cfg);
 
-  cp.tick("Program End"); 
-  cp.print(); 
+// run should return information about bounds of each equivalence class per partial observation
+// Depends how equivalence classes are stored
+int rc = ex.run();
+std::cout << "[main] done, rc=" << rc << "\n" << std::endl;
 
-  return rc;
+cp.tick("Program End"); 
+cp.print(); 
+
+return rc;
 }

@@ -25,6 +25,7 @@ set(MY_SRC
   src/kb_core.cpp
   src/observations.cpp
   src/metrics.cpp
+  src/spop.cpp
 )
 
 # SparsePOP sources - get all .cpp files from sparsePOP_dev/

@@ -185,12 +185,12 @@ void InputResultSDPA(SDPA & Problem, class Info & info, double ObjscaleVal, doub
     info.gap = info.mu*n;
 }
 
-void makeSDPr(class s3r &POP, class mysdp & sdpdata, class Info & info, string & pname, vector<vector<double> > & fixedVar){
+void makeSDPr(class s3r &POP, class mysdp & sdpdata, class Info & info, string & pname, vector<vector<double> > & fixedVar, tuple<int,int, vector<int>, vector<int>, vector<int>>& fromGen){
     /* read GMS file */
     POP.problemName = pname;
 
     // testing delete me later
-    tuple<int,int, vector<int>, vector<int>, vector<int>> fromGen = loadBlob();
+    //tuple<int,int, vector<int>, vector<int>, vector<int>> fromGen = loadBlob();
 
     inputGMS(POP.Polysys, pname);
     //cout << "reading input finished. " << endl;
