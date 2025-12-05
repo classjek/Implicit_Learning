@@ -1,0 +1,71 @@
+The definitions and defalut values for the following parameters 
+are given in Section 7 of UserGuide.pdf of MATLAB version of SparsePOP:
+
+relaxOrder
+sparseSW
+multiCliquesFactor
+scalingSW
+boundSW 
+eqTolerance
+perturbation
+reduceMomentMatSW
+complementaritySW
+SDPsolverSW
+SDPsolverOutFile
+detailedInfFile
+sdpaDataFile
+printFileName
+printLevel1
+printLevel2
+
+
+The definition and defalut value for the following parameter 
+are not given in UserGuide.pdf of MATLAB version of SparsePOP, 
+but is defined in MATLAB version of SparsePOP:
+
+reduceAMatSW	: If 1 (default), then
+			(a) Eliminate some fixed variables from a POP before applying the 
+			sparse SDP relaxation,  
+			(b) When the equality constraints of the SeDuMi format primal SDP
+			are linearly dependent, eliminated some equalities to restore 
+			the linear independence.
+		= 0 for no (a) and (b);
+		= 1 for (a) and (b);
+
+
+The following parameters are not defined in MATLAB version of SparsePOP:
+
+printOnScreen	: If 1 (default), then the result of SparsePOP is displayed 
+			on the screen.
+		: If 0 , then the result is not displayed on the screen.
+
+SDPAOnScreen	: If 1 (default), then the result of SDPA is displayed 
+			on the screen.
+		  If 0, then the result is not displayed on the screen. 
+
+Method		: If `symamd' (default), then 
+			SparsePOP uses symamd in COLAMD for finding the sparsity 
+			of a given POP.
+		  If `metis', then 
+			SparsePOP uses metis for finding the sparsity of a given POP.
+
+The following parameters are defined in MATLAB and C++ versions of SparsePOP,
+but the definitions are not described in UserGuide.pdf. 
+			
+binarySW       : If 1 (default), then a reduction for a POP which has 
+                 constraint "x^2 = x" works for the resulting SDP
+                 relaxation problems.
+               : If 0, then no reduction.
+
+SquareOneSW    : If 1 (default), then a reduction for a POP which has 
+                 constraint "x^2 = 1" works for the resulting SDP
+                 relaxation problems.
+               : If 0, then no reduction.
+
+These reductions are based on the following paper:
+J.B.Lasserre, "An explicit equivalent positive semidefinite
+program for nonlinear 0-1 programs", SIAM J.Optim., 12, 
+pp. 756--769.
+However, these reductions do not work when user computes error 
+bounds of an approximated solution obtained by SparsePOP.
+

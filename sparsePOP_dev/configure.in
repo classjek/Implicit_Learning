@@ -1,0 +1,267 @@
+dnl                                               -*- Autoconf -*-
+dnl Process this file with autoconf to produce a configure script.
+
+AC_PREREQ([2.65])
+AC_INIT([sparsePOP], [2.56], [kojima-spop@is.titech.ac.jp])
+AM_INIT_AUTOMAKE
+AC_CONFIG_SRCDIR([sparsePOP.cpp])
+dnl AC_CONFIG_HEADERS([config.h])
+
+dnl Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_FC
+AC_FC_LIBRARY_LDFLAGS
+AC_FC_WRAPPERS
+AC_CANONICAL_HOST
+dnl How thread we link thread library esp. needed for sdpa.
+case "$host" in
+        *-*-linux*|*-*-uclinux*)
+            pthread_cflags="-D_REENTRANT"
+            pthread_lib="-lpthread"
+            ;;
+        *-*-freebsd*|*-*-dragonfly*)
+            pthread_cflags=""
+            pthread_lib="-pthread"
+            ;;
+esac
+LIBS="$LIBS -lm $pthread_lib -lgfortran"
+CXXFLAGS="$CXXFLAGS $pthread_cflags"
+AC_SUBST(pthread_lib)
+CFLAGS="$CFLAGS -O2 -funroll-all-loops"
+CXXFLAGS="$CXXFLAGS  -O2 -funroll-all-loops"
+FCFLAGS="$FCFLAGS  -O2 -funroll-all-loops"
+AC_SUBST(CFLAGS)
+AC_SUBST(CXXFLAGS)
+AC_SUBST(FCFLAGS)
+AC_SUBST(FCLIBS)
+
+dnl Check for blas
+AC_ARG_WITH([blas], 
+ 	AS_HELP_STRING([--with-blas],
+ 			[Give your BLAS library (Default: /usr/lib)]),
+ 	[BLAS_LIB=$withval], [BLAS_LIB=/usr/lib])
+HAVE_BLAS=""
+save_LIBS="$LIBS"
+BLAS_LIB="-L$BLAS_LIB -lblas"
+LIBS="$LIBS $BLAS_LIB $FCLIBS $pthread_lib"
+AC_FC_FUNC(dgemm)
+AC_CHECK_FUNC($dgemm, [HAVE_BLAS=yes])
+LIBS="$save_LIBS"
+if test x"$HAVE_BLAS" != x"yes"; then
+ 	echo "Install BLAS"
+	echo "Download from http://www.netlib.org/lapack"
+	echo "or http://math-atlas.sourceforge.net"
+	AC_MSG_ERROR([No BLAS fuond])
+fi
+AC_SUBST(BLAS_LIB)
+
+dnl Check for lapack
+AC_ARG_WITH([lapack], 
+	AS_HELP_STRING([--with-lapack],
+			[Give your LAPACK library (Default: /usr/lib)]),
+	[LAPACK_LIB=$withval], [LAPACK_LIB=/usr/lib])
+HAVE_LAPACK=""
+save_LIBS="$LIBS"
+LAPACK_LIB="-L$LAPACK_LIB -llapack"
+LIBS="$LIBS $LAPACK_LIB $BLAS_LIB $FCLIBS $pthread_lib"
+AC_FC_FUNC(dpptrf)
+AC_CHECK_FUNC($dpptrf, [HAVE_LAPACK=yes])
+LIBS="$save_LIBS"
+if test x"$HAVE_LAPACK" != x"yes"; then
+	echo "Install LAPACK"
+	echo "Download from http://http://www.netlib.org/lapack"
+	AC_MSG_ERROR([No LAPACK fuond])
+fi
+AC_SUBST(LAPACK_LIB)
+
+dnl Check for metis 
+AC_ARG_WITH([metis-libdir], 
+	AS_HELP_STRING([--with-metis-libdir],
+			[Give your METIS library (Default: /usr/local/lib)]),
+	[METIS_LIB=$withval], [METIS_LIB=/usr/local/lib])
+AC_ARG_WITH([metis-includedir], 
+	AS_HELP_STRING([--with-metis-includedir],
+			[Give your directory of include of METIS (Default: /usr/local/include/metis)]),
+	[METIS_INCLUDE=$withval], [METIS_INCLUDE=/usr/local/include/metis/])
+HAVE_METIS_HEADER=""
+save_CPPFLAGS="$CPPFLAGS"
+METIS_INCLUDE="-I$METIS_INCLUDE"
+CPPFLAGS="$METIS_INCLUDE $CPPFLAGS"
+AC_CHECK_HEADER(metis.h, [AC_DEFINE(HAVE_METIS_H) HAVE_METIS_HEADER=yes])
+CPPFLAGS="$save_CPPFLAGS"
+if test x"$HAVE_METIS_HEADER" != x"yes"; then
+	echo "Install METIS"
+	echo "Download from http://glaros.dtc.umn.edu/gkhome/views/metis"
+	AC_MSG_ERROR([No METIS fuond])
+fi
+AC_SUBST(METIS_INCLUDE)
+HAVE_METIS=""
+save_LIBS="$LIBS"
+METIS_LIB="-L$METIS_LIB -lmetis"
+LIBS="$METIS_LIB $LIBS $FCLIBS $pthread_lib"
+AC_CHECK_FUNC(METIS_NodeND, [HAVE_METIS=yes])
+LIBS="$save_LIBS"
+if test x"$HAVE_METIS" != x"yes"; then
+	echo "Install METIS"
+	echo "Download from http://glaros.dtc.umn.edu/gkhome/views/metis"
+	AC_MSG_ERROR([No METIS fuond])
+fi
+AC_SUBST(METIS_LIB)
+	
+dnl Check for UFconfig
+AC_ARG_WITH([ufconfig], 
+	AS_HELP_STRING([--with-ufconfig],
+			[Give your directory of UFconfig (Default: /usr/include/suitesparse)]),
+	[UFCONFIG=$withval],[UFCONFIG=/usr/include/suitesparse])
+HAVE_UFCONFIG=""
+UFCONFIG="-I$UFCONFIG"
+save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $UFCONFIG"
+AC_CHECK_HEADER(UFconfig.h, HAVE_UFCONFIG=yes)
+if test x"$HAVE_UFCONFIG" != x"yes"; then
+	echo "Install UFconfig"
+	echo "Download from http://www.cise.ufl.edu/research/sparse/UFconfig"
+	AC_MSG_ERROR([No UFconfig found])
+fi
+AC_SUBST(UFCONFIG)
+
+dnl Check for colamd
+AC_ARG_WITH([colamd-libdir], 
+	AS_HELP_STRING([--with-colamd-libdir],
+			[Give your directory of library of colamd (Default: /usr/lib)]),
+	[COLAMD_LIB=$withval],[COLAMD_LIB=/usr/lib])
+AC_ARG_WITH([colamd-includedir], 
+	AS_HELP_STRING([--with-colamd-includedir],
+			[Give your directory of include of colamd (Default: /usr/include/suitesparse)]),
+	[COLAMD_INCLUDE=$withval],[COLAMD_INCLUDE=/usr/include/suitesparse])
+HAVE_COLAMD_HEADER=""
+COLAMD_INCLUDE="-I$COLAMD_INCLUDE"
+save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $COLAMD_INCLUDE"
+AC_CHECK_HEADER(colamd.h, [HAVE_COLAMD_HEADER=yes])
+CPPFLAGS="$save_CPPFLAGS"
+if test x"$HAVE_COLAMD_HEADER" != x"yes"; then
+	echo "Install COLAMD"
+	echo "Download from http://www.cise.ufl.edu/research/sparse/colamd"
+	AC_MSG_ERROR([No COLAMD fuond])
+fi
+AC_SUBST(COLAMD_INCLUDE)
+HAVE_COLAMD=""
+save_LIBS="$LIBS"
+COLAMD_LIB="-L$COLAMD_LIB -lcolamd"
+LIBS="$LIBS $COLAMD_LIB $FCLIBS $pthread_lib"
+AC_CHECK_FUNC(symamd, [HAVE_COLAMD=yes])
+LIBS="$save_LIBS"
+if test x"$HAVE_COLAMD" != x"yes"; then
+	echo "Install COLAMD"
+	echo "Download from http://www.cise.ufl.edu/research/sparse/colamd"
+	AC_MSG_ERROR([No COLAMD fuond])
+fi
+AC_SUBST(COLAMD_LIB)
+	
+dnl Check for sdpa 
+AC_ARG_WITH([sdpa-libdir], 
+	AS_HELP_STRING([--with-sdpa-libdir],
+			[Give your directory of library of sdpa (Default: /usr/local/lib)]),
+	[SDPA_LIB=$withval],[SDPA_LIB="/usr/local/lib"])
+AC_ARG_WITH([sdpa-includedir], 
+	AS_HELP_STRING([--with-sdpa-includedir],
+			[Give your directory of include of sdpa (Default: /usr/local/include)]),
+	[SDPA_INCLUDE=$withval],[SDPA_INCLUDE="/usr/local/include"])
+
+SDPA_INCLUDE_DIR=$SDPA_INCLUDE
+SDPA_LIB_DIR=$SDPA_LIB
+
+dnl Check for mumps of sdpa 
+
+
+
+
+dnl -----------------------------------------------------------------
+dnl  Use the external MUMPS built alongside SDPA
+dnl -----------------------------------------------------------------
+
+AC_ARG_WITH([mumps-sdpa-libdir],
+  AS_HELP_STRING([--with-mumps-sdpa-libdir=DIR],
+                 [Directory that contains libdmumps.a, libmumps_common.a, libpord.a, libmpiseq.a]),
+  [MUMPS_LIBDIR="$withval"],
+  [MUMPS_LIBDIR="$HOME/src/MUMPS_4.10.0/lib"])
+
+AC_ARG_WITH([mumps-sdpa-includedir],
+  AS_HELP_STRING([--with-mumps-sdpa-includedir=DIR],
+                 [Directory that contains dmumps_c.h]),
+  [MUMPS_INCDIR="$withval"],
+  [MUMPS_INCDIR="$HOME/src/MUMPS_4.10.0/include"])
+
+dnl ---- header check ------------------------------------------------
+CPPFLAGS_SAVE=$CPPFLAGS
+CPPFLAGS="$CPPFLAGS -I$MUMPS_INCDIR"
+AC_CHECK_HEADER([dmumps_c.h], [have_mumps_header=yes], [have_mumps_header=no])
+CPPFLAGS=$CPPFLAGS_SAVE
+AS_IF([test "x$have_mumps_header" != xyes],
+      [AC_MSG_ERROR([dmumps_c.h not found in $MUMPS_INCDIR])])
+
+MUMPS_INCLUDE="-I$MUMPS_INCDIR"
+AC_SUBST([MUMPS_INCLUDE])
+
+dnl ---- library check ----------------------------------------------
+MUMPS_LIBS="$MUMPS_LIBDIR/libdmumps.a \
+            $MUMPS_LIBDIR/libmumps_common.a \
+            $MUMPS_LIBDIR/libpord.a \
+            $MUMPS_LIBDIR/libmpiseq.a"
+
+LIBS_SAVE=$LIBS
+LIBS="$MUMPS_LIBS $LAPACK_LIBS $BLAS_LIBS $PTHREAD_LIBS $LIBS_SAVE"
+
+AC_FC_FUNC([dmumps_c])
+AC_CHECK_FUNC([dmumps_c], [have_mumps_lib=yes], [have_mumps_lib=no])
+
+LIBS=$LIBS_SAVE
+AS_IF([test "x$have_mumps_lib" != xyes],
+      [AC_MSG_ERROR([dmumps libraries not found or not linkable in $MUMPS_LIBDIR])])
+
+AC_SUBST([MUMPS_LIBS])
+dnl -----------------------------------------------------------------
+
+
+
+
+
+
+HAVE_SDPA_HEADER=""
+SDPA_INCLUDE="-I$SDPA_INCLUDE"
+save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $MUMPS_INCLUDE $SDPA_INCLUDE"
+AC_LANG(C++)
+AC_CHECK_HEADER(sdpa_call.h, [HAVE_SDPA_HEADER=yes])
+CPPFLAGS="$save_CPPFLAGS"
+if test x"$HAVE_SDPA_HEADER" != x"yes"; then
+	echo "Install SDPA"
+	echo "Download from http://sdpa.indsys.chuo-u.ac.jp/sdpa/download.html"
+	AC_MSG_ERROR([No SDPA fuond])
+fi
+AC_SUBST(SDPA_INCLUDE)
+HAVE_SDPA=""
+save_LIBS="$LIBS"
+SDPA_LIB="-L$SDPA_LIB/ -lsdpa"
+LIBS="$LIBS $SDPA_LIB $MUMPS_LIB $BLAS_LIB $LAPACK_LIB $FCLIBS $pthread_lib"
+AC_CHECK_FUNC(rdpotrfl_, [HAVE_SDPA=yes])
+LIBS="$save_LIBS"
+if test x"$HAVE_SDPA" != x"yes"; then
+	echo "Install SDPA"
+	echo "Download from http://sdpa.indsys.chuo-u.ac.jp/sdpa/download.html"
+	AC_MSG_ERROR([No SDPA fuond])
+fi
+AC_SUBST(SDPA_LIB)
+
+dnl Checks for header files.
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+
+dnl Checks for library functions.
+AC_CHECK_FUNCS([pow])
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
