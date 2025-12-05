@@ -67,6 +67,8 @@ Constraint parseConstraint(const std::string &text);
 void generateGrounding(const std::vector<kb::Constraint>& constraints, const std::vector<std::vector<std::string>>& typedGroundNames, std::unordered_map<size_t,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec);
 
 void createGroundingRepresentation(const std::vector<std::vector<std::vector<int>>>& finalResults, std::vector<int>& polyWidth, std::vector<int>& gndOff, std::vector<int>& gndData);
+// std::map<std::string, std::string> relVarMap(const std::vector<kb::Constraint>& constraints);
+void writeGMSFile(const std::vector<kb::Constraint>& constraints); 
 
 } 
 #endif
