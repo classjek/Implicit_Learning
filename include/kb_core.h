@@ -26,6 +26,7 @@ struct Atom {
     std::string toStringWithInput(const std::unordered_map<Sym,Sym>& freeToGround, std::unordered_map<Sym,int>& groundMap, std::vector<int>& resultVec) const; 
     // define operations for comparing Atoms
     bool operator<(const Atom &o) const noexcept;
+    bool operator!=(const Atom& o) const noexcept;
     bool operator==(const Atom &o) const noexcept;
 };
 

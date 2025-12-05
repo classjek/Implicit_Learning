@@ -1,0 +1,35 @@
+* 2011 Apr. 26 Hayato Waki
+Fixed a small bug on handling polynomial matrix inequalites.
+Fixed a small bug on eliminating varialbes.
+
+*2011 Jun. 1 Hayato Waki
+Changed AC_F77 into AC_FC in counfigure.in
+
+*2011 Jun. 3 Hayato Waki
+SDPA which SparePOP calls can use multi thread computaion.
+To this end, set OMP_NUM_THREADS before solving POP.
+
+*2011 Jul. 8 Hayato Waki
+More class pop_params into Parameters.h.
+Change param.pop. User cannot use param.pop which is used in 
+old versions.
+User can give epislonDash and epsilonStar from param.pop.
+
+*2011 Jul. 30 Hayato Waki
+Fixed a small bug on handling polynomial matrix inequalites.
+
+*2011 Jul. 30 Hayato Waki
+The parameters "binarySW" and "SquareOneSW" are available. 
+See PARAMETER.txt and README for more detail.
+
+*2011 Aug. 18 Hayato Waki
+We changed The type of the 2nd argment in gen_basisindices into double.
+For this, we casted some variables into int. 
+
+*2011 Nov. 25 Hayato Waki
+We modified some functions for outputs of information on SDP relaxation in 
+conversion.cpp, sup.cpp, polynomial.cpp, and info.cpp.
+
+*2012 Jan. 13 Hayato Waki
+* Some unsed variables in conversion.cpp, mysdp.cpp, etc. are eliminated.
+
