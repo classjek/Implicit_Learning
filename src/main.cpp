@@ -122,7 +122,9 @@ std::string fileName = domain::writeGMSFile(universal_constraints);
 std::cout << "Solving with SparsePOP..." << std::endl;
 std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData);
 
+cp.tick("Before SparsePOP Solve");
 solveWithSparsePOP(fileName, fromGen);
+cp.tick("After SparsePOP Solve");
 
 int num_observations = 6;
 cfg.omp_threads = std::floor(36 / num_observations);

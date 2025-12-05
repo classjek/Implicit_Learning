@@ -1505,7 +1505,8 @@ void gather_diag_blocks(int gbs, vector<vector<int> > dibs, class mysdp & psdp){
     }
     //renumbering no. of blocks
     int a = 1;
-    for(int i=1;i<psdp.nBlocks;i++){
+    // Bug fix - 12/5/2025, from < to <=
+    for(int i=1;i<=psdp.nBlocks;i++){
         if(psdp.block_info[1][i] > 0){
             psdp.block_info[0][a] = psdp.block_info[0][i];
             psdp.block_info[1][a] = psdp.block_info[1][i];
