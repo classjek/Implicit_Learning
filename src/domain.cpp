@@ -571,6 +571,7 @@ void createGroundingRepresentation(const std::vector<std::vector<std::vector<int
             }
         }
     }
+    gndOff.push_back(static_cast<int>(gndData.size()));
 }
 
 std::map<std::string, std::string> relVarMap(const std::vector<kb::Constraint>& constraints){
@@ -590,7 +591,7 @@ std::map<std::string, std::string> relVarMap(const std::vector<kb::Constraint>& 
     return rel2var; 
 }
 
-void writeGMSFile(const std::vector<kb::Constraint>& constraints){
+std::string writeGMSFile(const std::vector<kb::Constraint>& constraints){
     std::map<std::string, std::string> rel2var = relVarMap(constraints);
 
     // Constraint Lines //
@@ -644,6 +645,7 @@ void writeGMSFile(const std::vector<kb::Constraint>& constraints){
     out << eqs << std::endl;
     out << boundLine << std::endl;
     out.close(); 
+    return tmpFile; 
 }
 
 

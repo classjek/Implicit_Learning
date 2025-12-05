@@ -2560,7 +2560,9 @@ vector<list<int>> createNewBind(const vector<set<int>>& tempBindices, const vect
     for (int i = 0; i < bindToNew.size(); i++){ // fill in constraint information in bindices
         for (int j = 0; j < bindToNew[i].size(); j++){
             for (auto& var : tempBindices[i]){ // Add tempBindices[i] to bindices[j]
+                //std::cout << " before " << std::endl;
                 bindices[bindToNew[i][j]].push_back(var);
+                //std::cout << " after " << std::endl;
             }
         }
     }
@@ -2591,7 +2593,7 @@ void addPolynomial(class s3r & sr, int& i, const int& pwidth, const vector<int>&
             exit(EXIT_FAILURE);
     } 
     int numnew = (gndOff[i+1] - gndOff[i]) / pwidth; // calculate number of new polys that will be created from poly i
-    //cout << "   constraint " << i << " becomes " << numnew << " constraints" << endl;
+    cout << "   constraint " << i << " becomes " << numnew << " constraints.     gndOff[" << i << "] == " << gndOff[i] << ", gndOff[" << i+1 << "] == " << gndOff[i+1] << ", pwidth = " << pwidth << endl;
     for (int j = 0; j < numnew; j++){ // one iteration for each new polynomial
         class poly new_poly = sr.Polysys.polynomial[i]; 
         int curidx = gndOff[i] + pwidth * j; 
@@ -2749,7 +2751,7 @@ void conversion_part2(
         printPolynomial(sr.Polysys.polynomial[i], "Poly " + to_string(i));
     }
     cout << "------Done Printing Original Polynomials-------" << '\n' << endl;
-    cout << "What? dimVar = " << sr.Polysys.numsys() << " and numcliques = " << sr.maxcliques.numcliques << endl;
+    //cout << "What? dimVar = " << sr.Polysys.numsys() << " and numcliques = " << sr.maxcliques.numcliques << endl;
     printBindices(sr.bindices, sr.Polysys.numsys(), sr.maxcliques.numcliques, "Initial Bind");
 
     // Extra Information received from gen_pop
@@ -2775,6 +2777,7 @@ void conversion_part2(
     vector<vector<int>> bindToNew(sr.Polysys.numsys()); // used to hold information that will be used with tempBindices to create the bindices for our new system
 
     int origNumPoly = sr.Polysys.polynomial.size(); 
+
     for (int i = 0; i < origNumPoly; i++){ // for each polynomial
         auto origPoly = sr.Polysys.polynomial[i];
         int pwidth = polyWidth[i];
@@ -2783,6 +2786,7 @@ void conversion_part2(
         if (pwidth == 0){
             continue; 
         }
+        //std::cout << " Calling addPolynomial for polynomial " << i << std::endl;
         addPolynomial(sr, i, pwidth, gndOff, gndData, tempBindices, newLo, newUp, bindToNew, expectMap);
     }
 
@@ -2790,8 +2794,8 @@ void conversion_part2(
     // form update Bindices
     vector<list<int>> newBindices = createNewBind(tempBindices, bindToNew, newNumConst, sr.maxcliques.numcliques);
     sr.bindices = newBindices; 
-    //printBindices(newBindices, newNumConst, sr.maxcliques.numcliques, "New New Bindices");
-    
+    // printBindices(newBindices, newNumConst, sr.maxcliques.numcliques, "New New Bindices");
+
     sr.Polysys.dimVar = newNumVars; // update number of variables in the system
     sr.Polysys.numSys = newNumConst; // update number of constraints in the system
 
@@ -2808,23 +2812,24 @@ void conversion_part2(
     fixedVar[1] = vector<double>(newNumVars, 0); // dummy value 
 
     // Update each polynomial with new variable size and print them
-    cout << '\n' << "------Printing NEW Polynomials-------" << endl;
-    for (auto& poly : sr.Polysys.polynomial) {
-        poly.setDimVar(newNumVars);
-        printPolynomial(poly, "resulting poly");
-    }
-    cout << "------Done Printing NEW Polynomials-------" << endl;
+    // cout << '\n' << "------Printing NEW Polynomials-------" << endl;
+    // for (auto& poly : sr.Polysys.polynomial) {
+    //     poly.setDimVar(newNumVars);
+    //     printPolynomial(poly, "resulting poly");
+    // }
+    // cout << "------Done Printing NEW Polynomials-------" << endl;
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
 
     // Printing out expectMap
-    for (int i = 0; i < expectMap.size(); i++){
-        cout << "expectMap[" << i << "] = ";
-        for(auto& elem : expectMap[i]){
-            cout << elem << ", "; 
-        }
-        cout << endl;
-    }
+    // Used for enforcing expectations after grounding
+    // for (int i = 0; i < expectMap.size(); i++){
+    //     cout << "expectMap[" << i << "] = ";
+    //     for(auto& elem : expectMap[i]){
+    //         cout << elem << ", "; 
+    //     }
+    //     cout << endl;
+    // }
 
 
     cout << endl;
@@ -3063,27 +3068,24 @@ void conversion_part2(
     std::vector<bool> has_deg1(sr.Polysys.dimVar, false);
 
     ////DEBUG////
-    // Loop over all supports (monomials) in allsups
-    for (int i = 0; i < allsups.pnz_size; ++i) {
-        int start = allsups.pnz[0][i];
-        int len = allsups.pnz[1][i];
-        // Check if this monomial is degree 1
-        if (len == 1 && allsups.vap[1][start] == 1) {
-            int var_idx = allsups.vap[0][start];
-            has_deg1[var_idx] = true;
-        }
-    }
-
-    // Print a summary
-    for (int i = 0; i < sr.Polysys.dimVar; ++i) {
-        if (!has_deg1[i]) {
-            std::cout << "WARNING: Variable " << i
-                    << " does NOT appear as a degree-1 monomial in the moment matrix. "
-                    << "degOneTerms[" << i << "] will be 0 and its value will NOT be extractable!" << std::endl;
-        } else {
-            std::cout << "Variable " << i << " will be extractable (has degree-1 moment)." << std::endl;
-        }
-    }
+    // for (int i = 0; i < allsups.pnz_size; ++i) {     // Loop over all supports (monomials) in allsups
+    //     int start = allsups.pnz[0][i];
+    //     int len = allsups.pnz[1][i];
+    //     // Check if this monomial is degree 1
+    //     if (len == 1 && allsups.vap[1][start] == 1) {
+    //         int var_idx = allsups.vap[0][start];
+    //         has_deg1[var_idx] = true;
+    //     }
+    // }
+    // for (int i = 0; i < sr.Polysys.dimVar; ++i) {     // Print a summary
+    //     if (!has_deg1[i]) {
+    //         std::cout << "WARNING: Variable " << i
+    //                 << " does NOT appear as a degree-1 monomial in the moment matrix. "
+    //                 << "degOneTerms[" << i << "] will be 0 and its value will NOT be extractable!" << std::endl;
+    //     } else {
+    //         std::cout << "Variable " << i << " will be extractable (has degree-1 moment)." << std::endl;
+    //     }
+    // }
     ////END DEBUG////
 
     //linearize polynomial sdp
