@@ -2852,6 +2852,7 @@ void conversion_part2(
     sr.timedata[3] = (double)clock();
 	val = getmem();
     
+    std::cout << "So we are here, line 2855" << std::endl;
     //get polyinfo_obj( array data-type to have polynomial form data )
     initialize_polyinfo(sr.Polysys, 0, polyinfo_obj);
     sr.timedata[4] = (double)clock();
@@ -2923,6 +2924,9 @@ void conversion_part2(
 	vector<int> remainIdx;
     // Remove redundant constraints
 	sr.Polysys.removeEQU(remainIdx);
+
+    std::cout << "Now here, line 2928" << std::endl;
+
 
 	int num = sr.Polysys.removeIdx.size(); // Analyze system of polynomials and determine which constraints can be eliminated
 	BasisSupports.removeEQU(num, remainIdx); // Remove basis supports of removed constraints
@@ -3017,6 +3021,7 @@ void conversion_part2(
 	sr.timedata[15] = (double)clock();
 	val = getmem();
 	//cout << "15 " << sr.timedata[15] << endl;
+    std::cout << "Now we are here! 3024" << std::endl;
     
 	mmsetSize=BasisSupports.supsetArray.size()-(sr.Polysys.numsys()-numofbds);
 	for(int i=0;i<mmsetSize;i++){

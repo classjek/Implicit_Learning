@@ -45,6 +45,7 @@ void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     // Problem.readParameter(pname_ptr);
     std::string pname = "../data/param.sdpa";
     Problem.readParameter(const_cast<char*>(pname.c_str()));
+
     //strcpy(Problem.ParameterFileName,"param.sdpa");
     //Problem.ParameterFile = fopen(Problem.ParameterFileName,"r");
     //cout << "1" <<endl;
@@ -134,7 +135,7 @@ void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     }
     Problem.initializeUpperTriangle();
     Problem.setInitPoint(false);
-	Problem.setNumThreads(0);	
+	Problem.setNumThreads(6);	
 	cout << "## SDPA uses " << Problem.getNumThreads() << " threads." <<endl;
 }
 

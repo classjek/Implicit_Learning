@@ -5,7 +5,9 @@
 #include <vector>
 #include <tuple>
 
+#include "metrics.h"
+
 // Simple wrapper to call SparsePOP
-void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>>& fromGen);
+void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>>& fromGen, metrics::Checkpoint& cp);
 
 #endif
