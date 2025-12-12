@@ -74,10 +74,10 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+3);
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+3);
-groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+3);
-groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+3);
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+10);
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+10);
+groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+2);
+groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+2);
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 std::cout << std::endl;
 
@@ -123,7 +123,7 @@ std::cout << "Solving with SparsePOP..." << std::endl;
 std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData);
 
 cp.tick("Before SparsePOP Solve");
-solveWithSparsePOP(fileName, fromGen);
+solveWithSparsePOP(fileName, fromGen, cp);
 cp.tick("After SparsePOP Solve");
 
 int num_observations = 6;
@@ -143,3 +143,10 @@ cp.print();
 
 return rc;
 }
+
+// 1 Thread
+// [Tick] Before SparsePOP Solve | +dt=0.0116062s | total=0.0779765s | RSS=17.55 MiB | Peak=17.55 MiB
+// [Tick] After SparsePOP Solve | +dt=76.8802s | total=76.9582s | RSS=384.98 MiB | Peak=607.27 MiB
+// 6 threads
+// [Tick] Before SparsePOP Solve | +dt=0.0122424s | total=0.0925908s | RSS=17.47 MiB | Peak=17.47 MiB
+// [Tick] After SparsePOP Solve | +dt=69.7992s | total=69.8918s | RSS=386.09 MiB | Peak=608.64 MiB
