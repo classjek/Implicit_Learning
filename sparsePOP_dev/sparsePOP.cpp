@@ -135,7 +135,8 @@ void MakeSDPAform(class mysdp & sdpdata, SDPA & Problem){
     }
     Problem.initializeUpperTriangle();
     Problem.setInitPoint(false);
-	Problem.setNumThreads(6);	
+	// Problem.setNumThreads(6);	
+    Problem.setNumThreads(2); 
 	cout << "## SDPA uses " << Problem.getNumThreads() << " threads." <<endl;
 }
 

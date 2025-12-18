@@ -74,8 +74,8 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+10);
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+10);
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+4);
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+3);
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+2);
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+2);
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
@@ -129,19 +129,20 @@ cp.tick("After SparsePOP Solve");
 int num_observations = 6;
 cfg.omp_threads = std::floor(36 / num_observations);
 
-std::cout << "\nThreads: " << cfg.omp_threads << std::endl;
-// Later pass vector of partialobservations and equivalence class map to executor
-Executor ex(cfg);
+// std::cout << "\nThreads: " << cfg.omp_threads << std::endl;
+// // Later pass vector of partialobservations and equivalence class map to executor
+// Executor ex(cfg);
 
 // run should return information about bounds of each equivalence class per partial observation
 // Depends how equivalence classes are stored
-int rc = ex.run();
-std::cout << "[main] done, rc=" << rc << "\n" << std::endl;
+// int rc = ex.run();
+// std::cout << "[main] done, rc=" << rc << "\n" << std::endl;
 
 cp.tick("Program End"); 
 cp.print(); 
 
-return rc;
+//return rc;
+return 0;
 }
 
 // 1 Thread
