@@ -56,7 +56,7 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
         cp.tick("Making SDPA form");
         SDPA Problem;
         MakeSDPAform(sdpdata, Problem);
-        std::cout << "SDPA form made." << std::endl;
+        std::cout << "SDPA form made.   num_threads = " << Problem.getNumThreads() << std::endl;
         Problem.setDisplay(NULL);
         std::cout << "- Set Display" << std::endl;
         Problem.initializeSolve();
@@ -66,7 +66,7 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
         Problem.setParameterEpsilonDash(POP.param.SDPsolverEpsilon);
         std::cout << "- Set Param 2" << std::endl;
         cp.tick("End Making SDPA form");
-        cp.print();
+        // cp.print();
         
         std::cout << "Solving SDP..." << std::endl;
         cp.tick("Before SDPA Solve");
