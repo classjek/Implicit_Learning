@@ -84,7 +84,8 @@ void remove_SquareOnesups(vector<int> Sqvec, class spvec_array & allsups);
 void remove_sups(class spvec_array & removesups, class spvec_array & sups);
 
 //function that write the sparse format of the SDP into the file
-void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile);
+//void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile);
+void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile, bool NegBlocks = false);
 
 //return the information of POP
 void get_poly_a_bass_info(

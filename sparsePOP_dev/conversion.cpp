@@ -1252,6 +1252,7 @@ void s3r::genBasisSupports(class supsetSet & BasisSupports){
         List.clear();
         if(i<this->Polysys.numsys()){
             sosDim=this->param.relax_Order-(int)ceil((double)(this->Polysys.polyDegree(i))/2.0);
+
             if(this->Polysys.polyTypeCone(i)==EQU){
                 //cout<<"Equality constraints "<<i<<" sosDim="<<sosDim<<endl;
                 genLexAll(nVars, 2*sosDim, List);
@@ -1262,13 +1263,13 @@ void s3r::genBasisSupports(class supsetSet & BasisSupports){
             }
         }
         else{
-            //cout<<"Moment matrices "<<i<<" sosDim="<<sosDim<<endl;
             genLexAll(nVars, this->param.relax_Order, List);
         }
         Moment.dimVar = this->Polysys.dimVar;
         Moment.setSupSet(nDim, List);
         Moment.changeIndicesAll(bindices[i]);
         BasisSupports.push(Moment);
+
     }
 }
 
@@ -2272,73 +2273,197 @@ void rescale_sol(int dimvar, vector<double> & pMat, vector<double> & bVec, doubl
     }
 }
 
-void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile){
-    FILE *fp;
-    fp = fopen(sdpafile.c_str(), "w+");
-    if(fp == NULL){
-        printf("file open error\n");
-        exit(EXIT_FAILURE);
+void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile, bool NegBlocks){
+    if (NegBlocks == false) {
+        FILE *fp;
+        fp = fopen(sdpafile.c_str(), "w+");
+        if(fp == NULL){
+            printf("file open error\n");
+            exit(EXIT_FAILURE);
+        }
+
+        int size = 0;
+        for(int i=1; i<psdp.nBlocks+1;i++){
+            size = size + psdp.block_info[1][i];
+        }
+	    if(psdp.mDim <= 0){
+	    	cout << "# All variables are removed in sdpa format" << endl;
+	    	return;
+	    }
+	    if(psdp.nBlocks <= 0){
+	    	cout << "# All blocks are removed in sdpa format" << endl;
+	    	return;
+	    }
+    
+        printf("* SDPA sparse format data\n");
+        printf("* File name = %s\n", sdpafile.c_str());
+        printf("* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
+        printf("* size of bVect = 1 * %3d\n", psdp.mDim);
+        printf("* size of sparseMatrix = %4d * 5\n", size);
+    
+        fprintf(fp, "* SDPA sparse format data\n");
+        fprintf(fp, "* File name = %s\n", sdpafile.c_str());
+        fprintf(fp, "* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
+        fprintf(fp, "* size of bVect = 1 * %3d\n", psdp.mDim);
+        fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
+        fprintf(fp, "%3d\n", psdp.mDim);
+        fprintf(fp, "%3d\n", psdp.nBlocks);
+    
+        for(int i=1;i<psdp.nBlocks+1;i++){
+            //fout<<" "<<psdp.bLOCKsTruct[i];
+            fprintf(fp, "%2d ", psdp.bLOCKsTruct[i]);
+        }
+        fprintf(fp, "\n");
+        //fout<<endl;
+    
+        vector<double> obj_coef(psdp.mDim+1);
+        obj_coef.clear();
+        obj_coef.resize(psdp.mDim+1, 0);
+    
+        for(int j=psdp.block_info[0][0];j<psdp.block_info[0][0]+psdp.block_info[1][0];j++){
+            obj_coef[psdp.ele.sup.pnz[0][j]-1] = psdp.ele.coef[j];
+        }
+    
+        for(int i=0;i<psdp.mDim;i++){
+            //fout<<obj_coef[i]<<" ";
+            fprintf(fp, "%15.10f ", obj_coef[i]);
+        }
+        fprintf(fp, "\n");
+        //fout<<endl;
+    
+        for(int i=1;i<psdp.nBlocks+1;i++){
+            for(int j=psdp.block_info[0][i];j<psdp.block_info[0][i]+psdp.block_info[1][i];j++){            
+                fprintf(fp, "%3d ", psdp.ele.sup.pnz[0][j]);
+                fprintf(fp, "%3d ", psdp.ele.bij[0][j]);
+                fprintf(fp, "%3d ", psdp.ele.bij[1][j]);
+                fprintf(fp, "%3d ", psdp.ele.bij[2][j]);
+                fprintf(fp, "%15.10f\n", psdp.ele.coef[j]);
+            }
+        }
+        fclose(fp);
+    } else { // NegBlocks == true
+        FILE *fp;
+        fp = fopen(sdpafile.c_str(), "w+");
+        if(fp == NULL){
+            printf("file open error\n");
+            exit(EXIT_FAILURE);
+        }
+
+        int size = 0;
+        for(int i=1; i<psdp.nBlocks+1; i++){
+            size = size + psdp.block_info[1][i];
+        }
+        if(psdp.mDim <= 0){
+            cout << "# All variables are removed in sdpa format" << endl;
+            return;
+        }
+        if(psdp.nBlocks <= 0){
+            cout << "# All blocks are removed in sdpa format" << endl;
+            return;
+        }
+
+        struct MapInfo {
+            bool isDiag;   // old block was negative => diagonal block
+            int  baseNew;  // for diag: first new block id; for PSD: the new block id
+            int  diagSize; // for diag only: k where old size = -k
+        };
+
+        vector<MapInfo> mapOld(psdp.nBlocks + 1);
+        vector<int> newBlockStruct;      // 1-based output block sizes
+        newBlockStruct.push_back(0);     // dummy so we can index from 1
+
+        int nextNew = 1;
+        for(int oldB = 1; oldB < psdp.nBlocks+1; oldB++){
+            int sz = psdp.bLOCKsTruct[oldB];
+            if(sz < 0){
+                int k = -sz;
+                mapOld[oldB] = {true, nextNew, k};
+                for(int t = 0; t < k; t++){
+                    newBlockStruct.push_back(1); // k blocks of size 1
+                    nextNew++;
+                }
+            } else {
+                mapOld[oldB] = {false, nextNew, 0};
+                newBlockStruct.push_back(sz);
+                nextNew++;
+            }
+        }
+        int newNBlocks = (int)newBlockStruct.size() - 1;
+
+        printf("* SDPA sparse format data\n");
+        printf("* File name = %s\n", sdpafile.c_str());
+        printf("* mDim = %3d, nBlock = %2d\n", psdp.mDim, newNBlocks);
+        printf("* size of bVect = 1 * %3d\n", psdp.mDim);
+        printf("* size of sparseMatrix = %4d * 5\n", size);
+
+        fprintf(fp, "* SDPA sparse format data\n");
+        fprintf(fp, "* File name = %s\n", sdpafile.c_str());
+        fprintf(fp, "* mDim = %3d, nBlock = %2d\n", psdp.mDim, newNBlocks);
+        fprintf(fp, "* size of bVect = 1 * %3d\n", psdp.mDim);
+        fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
+        fprintf(fp, "%3d\n", psdp.mDim);
+        fprintf(fp, "%3d\n", newNBlocks);
+
+        for(int i = 1; i < newNBlocks+1; i++){
+            fprintf(fp, "%2d ", newBlockStruct[i]);
+        }
+        fprintf(fp, "\n");
+
+        vector<double> obj_coef(psdp.mDim+1);
+        obj_coef.clear();
+        obj_coef.resize(psdp.mDim+1, 0);
+
+        for(int j = psdp.block_info[0][0]; j < psdp.block_info[0][0] + psdp.block_info[1][0]; j++){
+            obj_coef[psdp.ele.sup.pnz[0][j]-1] = psdp.ele.coef[j];
+        }
+
+        for(int i = 0; i < psdp.mDim; i++){
+            fprintf(fp, "%15.10f ", obj_coef[i]);
+        }
+        fprintf(fp, "\n");
+
+        for(int i = 1; i < psdp.nBlocks+1; i++){
+            for(int j = psdp.block_info[0][i]; j < psdp.block_info[0][i] + psdp.block_info[1][i]; j++){
+
+                int matno  = psdp.ele.sup.pnz[0][j];
+                int oldB   = psdp.ele.bij[0][j];
+                int row    = psdp.ele.bij[1][j];
+                int col    = psdp.ele.bij[2][j];
+                double val = psdp.ele.coef[j];
+
+                const MapInfo &mi = mapOld[oldB];
+
+             if(!mi.isDiag){
+                // Normal PSD block: keep indices as-is, only block id changes
+                    int newB = mi.baseNew;
+                    fprintf(fp, "%3d %3d %3d %3d %15.10f\n", matno, newB, row, col, val);
+                } else {
+                    // Diagonal block (-k): must be (row==col). Map to a 1x1 block.
+                    if(row != col){
+                        fprintf(stderr,
+                            "ERROR: off-diagonal entry in diagonal block %d at (row=%d,col=%d)\n",
+                            oldB, row, col);
+                        fclose(fp);
+                        exit(EXIT_FAILURE);
+                    }
+                    if(row < 1 || row > mi.diagSize){
+                        fprintf(stderr,
+                            "ERROR: diagonal index out of range in block %d: row=%d (size=%d)\n",
+                            oldB, row, mi.diagSize);
+                        fclose(fp);
+                        exit(EXIT_FAILURE);
+                    }
+                
+                    int newB = mi.baseNew + (row - 1);
+                    // 1x1 block => indices always (1,1)
+                    fprintf(fp, "%3d %3d %3d %3d %15.10f\n", matno, newB, 1, 1, val);
+                }
+            }
+        }
+    
+        fclose(fp);
     }
 
-    int size = 0;
-    for(int i=1; i<psdp.nBlocks+1;i++){
-        size = size + psdp.block_info[1][i];
-    }
-	if(psdp.mDim <= 0){
-		cout << "# All variables are removed in sdpa format" << endl;
-		return;
-	}
-	if(psdp.nBlocks <= 0){
-		cout << "# All blocks are removed in sdpa format" << endl;
-		return;
-	}
-    
-    printf("* SDPA sparse format data\n");
-    printf("* File name = %s\n", sdpafile.c_str());
-    printf("* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
-    printf("* size of bVect = 1 * %3d\n", psdp.mDim);
-    printf("* size of sparseMatrix = %4d * 5\n", size);
-    
-    fprintf(fp, "* SDPA sparse format data\n");
-    fprintf(fp, "* File name = %s\n", sdpafile.c_str());
-    fprintf(fp, "* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
-    fprintf(fp, "* size of bVect = 1 * %3d\n", psdp.mDim);
-    fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
-    fprintf(fp, "%3d\n", psdp.mDim);
-    fprintf(fp, "%3d\n", psdp.nBlocks);
-    
-    for(int i=1;i<psdp.nBlocks+1;i++){
-        //fout<<" "<<psdp.bLOCKsTruct[i];
-        fprintf(fp, "%2d ", psdp.bLOCKsTruct[i]);
-    }
-    fprintf(fp, "\n");
-    //fout<<endl;
-    
-    vector<double> obj_coef(psdp.mDim+1);
-    obj_coef.clear();
-    obj_coef.resize(psdp.mDim+1, 0);
-    
-    for(int j=psdp.block_info[0][0];j<psdp.block_info[0][0]+psdp.block_info[1][0];j++){
-        obj_coef[psdp.ele.sup.pnz[0][j]-1] = psdp.ele.coef[j];
-    }
-    
-    for(int i=0;i<psdp.mDim;i++){
-        //fout<<obj_coef[i]<<" ";
-        fprintf(fp, "%15.10f ", obj_coef[i]);
-    }
-    fprintf(fp, "\n");
-    //fout<<endl;
-    
-    for(int i=1;i<psdp.nBlocks+1;i++){
-        for(int j=psdp.block_info[0][i];j<psdp.block_info[0][i]+psdp.block_info[1][i];j++){            
-            fprintf(fp, "%3d ", psdp.ele.sup.pnz[0][j]);
-            fprintf(fp, "%3d ", psdp.ele.bij[0][j]);
-            fprintf(fp, "%3d ", psdp.ele.bij[1][j]);
-            fprintf(fp, "%3d ", psdp.ele.bij[2][j]);
-            fprintf(fp, "%15.10f\n", psdp.ele.coef[j]);
-        }
-    }
-    fclose(fp);
 }
 
 void perturb_objective(class poly & objpoly, int dimvar, double eps){
@@ -2794,7 +2919,6 @@ void conversion_part2(
     // form update Bindices
     vector<list<int>> newBindices = createNewBind(tempBindices, bindToNew, newNumConst, sr.maxcliques.numcliques);
     sr.bindices = newBindices; 
-    // printBindices(newBindices, newNumConst, sr.maxcliques.numcliques, "New New Bindices");
 
     sr.Polysys.dimVar = newNumVars; // update number of variables in the system
     sr.Polysys.numSys = newNumConst; // update number of constraints in the system
@@ -2845,6 +2969,7 @@ void conversion_part2(
     // by storing the index of the atoms involved and their respective exponents
     // This mostly utilizes bindices, and does not look at max cliques, so be careful about changing what is stored in bindices
     sr.genBasisSupports(BasisSupports);
+
     if(sr.param.detailedInfFile.empty() == false){
         sr.write_BasisSupports(0, sr.param.detailedInfFile, BasisSupports);
     }
@@ -2852,7 +2977,6 @@ void conversion_part2(
     sr.timedata[3] = (double)clock();
 	val = getmem();
     
-    std::cout << "So we are here, line 2855" << std::endl;
     //get polyinfo_obj( array data-type to have polynomial form data )
     initialize_polyinfo(sr.Polysys, 0, polyinfo_obj);
     sr.timedata[4] = (double)clock();
@@ -2924,8 +3048,6 @@ void conversion_part2(
 	vector<int> remainIdx;
     // Remove redundant constraints
 	sr.Polysys.removeEQU(remainIdx);
-
-    std::cout << "Now here, line 2928" << std::endl;
 
 
 	int num = sr.Polysys.removeIdx.size(); // Analyze system of polynomials and determine which constraints can be eliminated
@@ -3021,7 +3143,6 @@ void conversion_part2(
 	sr.timedata[15] = (double)clock();
 	val = getmem();
 	//cout << "15 " << sr.timedata[15] << endl;
-    std::cout << "Now we are here! 3024" << std::endl;
     
 	mmsetSize=BasisSupports.supsetArray.size()-(sr.Polysys.numsys()-numofbds);
 	for(int i=0;i<mmsetSize;i++){
@@ -3048,6 +3169,15 @@ void conversion_part2(
 	get_poly_a_bass_info(sr.Polysys, BasisSupports.supsetArray, mmBaSupVect, msize, polyinfo, bassinfo);
 	sr.timedata[17] = (double)clock();
 	val = getmem();
+
+
+    // Free intermediate structures that are no longer needed
+	BasisSupports.supsetArray.clear();
+	BasisSupports.supsetArray.shrink_to_fit();
+	mmBaSupVect.clear();
+	mmBaSupVect.shrink_to_fit();
+	allSups.supList.clear();
+    // Done freeing structures
 
 	//generate olynomial sdp
 	get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
