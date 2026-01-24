@@ -803,6 +803,7 @@ void get_psdp(/*IN*/int mdim, int msize, vector<class poly_info> & polyinfo, vec
             }
             convert_ineq_a_ba1(polyinfo[i], bassinfo[i], psdp);
             ggg[1][1] = psdp.nBlocks - ggg[1][0];
+
             //cout<<"mat[ "<<i<< " ] ineq_a_ba1"<<endl;
             //polyinfo[i].disp();
         }
@@ -810,6 +811,7 @@ void get_psdp(/*IN*/int mdim, int msize, vector<class poly_info> & polyinfo, vec
         else if(polyinfo[i].typeCone == INE && bassinfo[i].pnz_size >= 2){
             polyinfo[i].no = i;
             convert_ineq_a_ba2(polyinfo[i], bassinfo[i], psdp);
+
             //cout<<"mat[ "<<i<< " ] ineq_a_ba2"<<endl;
         }
         //(positive) SDP
@@ -836,6 +838,7 @@ void get_psdp(/*IN*/int mdim, int msize, vector<class poly_info> & polyinfo, vec
         else if(bassinfo[i].pnz_size >= 2){
             polyinfo[i].no = i;
             convert_ba2mmt(bassinfo[i], psdp);
+
             //cout<<"mat[ "<<i<< " ] ba2mmt"<<endl;
         }
         // Error handling
