@@ -3173,29 +3173,36 @@ void conversion_part2(
     // 3) Collects all unique resulting monomials. these are the supports that will actually appear as entries in the moment matrix
     // supports generated are stored in a spvec_array called mmsups
     // they are not explicitly labeled or grouped by which constraint or basis vector they came from
-	get_allsups_in_momentmatrix(sr.Polysys.dimvar(), mmsize, bassinfo_mm, mmsups);
+	
+    // Memory-efficient change: skip mmsups computation
+    // get_allsups_in_momentmatrix(sr.Polysys.dimvar(), mmsize, bassinfo_mm, mmsups);
 	sr.timedata[11] = (double)clock();
 	val = getmem();
-
-    // Memory diagnostic 
-    std::cout << "=== MEMORY CHECK: mmsups ===" << std::endl;
-	std::cout << "mmsups.pnz_size = " << mmsups.pnz_size << " monomials" << std::endl;
-	std::cout << "mmsups.vap_size = " << mmsups.vap_size << " total nonzeros" << std::endl;
-	std::cout << "Estimated memory = " << (mmsups.pnz_size * 16 / 1000000.0) << " MB" << std::endl;
-	std::cout << "=============================" << std::endl;
     
-	//generate all supports being consisted POP
+    
+	// generate all supports being consisted POP
     // Allocates a new spvec_array (allsups) big enough to hold all monomials from both
     // allsups_st (objective/constraints) and mmsups (moment matrices)
-	allsups.alloc(allsups_st.pnz_size + mmsups.pnz_size,
-	allsups_st.vap_size + mmsups.vap_size );
+
+    // Memory-efficient change: skip this step and directly push to allsups_st
+	// allsups.alloc(allsups_st.pnz_size + mmsups.pnz_size, allsups_st.vap_size + mmsups.vap_size );
+	// allsups.pnz_size = 0;
+	// allsups.vap_size = 0;
+	// allsups.dim = allsups_st.dim;
+	// pushsups(allsups_st, allsups);
+	// if(mmsups.vap_size > 0){
+	// 	pushsups(mmsups, allsups);
+	// }
+
+    // Only use constraint supports, NOT moment matrix products
+    // Don't push mmsups, its not computed anymore
+    allsups.alloc(allsups_st.pnz_size, allsups_st.vap_size);
 	allsups.pnz_size = 0;
 	allsups.vap_size = 0;
 	allsups.dim = allsups_st.dim;
 	pushsups(allsups_st, allsups);
-	if(mmsups.vap_size > 0){
-		pushsups(mmsups, allsups);
-	}
+
+
     // Simplifies the array (removes duplicates, sorts, etc) //
 	simplification(allsups);
 	sr.timedata[12] = (double)clock();

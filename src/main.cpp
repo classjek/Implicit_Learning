@@ -74,7 +74,7 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+15); // genes  15
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+20); // genes  15
 groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+10); // enzymes 20 
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds

@@ -36,11 +36,12 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
     std::cout << "- Number of variables: " << POP.Polysys.dimVar << std::endl;
     std::cout << "- Number of constraints: " << POP.Polysys.numSys << std::endl;
     std::cout << "nBlocks = " << sdpdata.nBlocks << std::endl;
-    for(int i=1; i <= sdpdata.nBlocks; i++){
-        if(sdpdata.block_info[1][i] > 0){
-            std::cout << "Block " << i << ": size = " << abs(sdpdata.bLOCKsTruct[i]) << std::endl;
-        }
-    }
+    // for(int i=1; i <= sdpdata.nBlocks; i++){
+    //     if(sdpdata.block_info[1][i] > 0){
+    //         std::cout << "Block " << i << ": size = " << abs(sdpdata.bLOCKsTruct[i]) << std::endl;
+    //     }
+    // }
+
     if (info.infeasibleSW != 0) {
         std::cout << "WARNING: Problem detected as infeasible before solving!" << std::endl;
         return;
