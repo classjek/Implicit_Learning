@@ -20,7 +20,108 @@
  * ------------------------------------------------------------- */
 
 #include <iostream>
+#include <string>
+#include <unordered_map>
 #include "conversion.h"
+
+
+std::string monomial_to_key(const spvec_array& arr, int idx) {
+    std::string key;
+    int start = arr.pnz[0][idx];
+    int len = arr.pnz[1][idx];
+    
+    if (start < 0 || len == 0) {
+        return "1";  // constant term
+    }
+    
+    for (int i = 0; i < len; i++) {
+        int var = arr.vap[0][start + i];
+        int exp = arr.vap[1][start + i];
+        key += std::to_string(var) + "^" + std::to_string(exp) + "_";
+    }
+    return key;
+}
+
+// New variable numbering scheme: use hash map instead of merge join
+// doesn't require precomputed allsups -> huge memory reduction
+void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
+    std::unordered_map<std::string, int> mono_to_var;
+    int next_var = 0;  // Next variable number to assign
+    int deg1_count = 0;
+    
+    // First pass: assign var numbers to all monomials in psdp.ele.sup
+    for (int i = 0; i < psdp.ele.sup.pnz_size; i++) {
+        std::string key = monomial_to_key(psdp.ele.sup, i);
+        
+        auto it = mono_to_var.find(key);
+        if (it == mono_to_var.end()) {
+            // New monomial so assign next variable number
+            mono_to_var[key] = next_var;
+            
+            // Check linear (deg 1) term
+            int start = psdp.ele.sup.pnz[0][i];
+            int len = psdp.ele.sup.pnz[1][i];
+            if (len == 1 && start >= 0 && psdp.ele.sup.vap[1][start] == 1) {
+                // This is a linear term x_k
+                if (deg1_count < (int)linearterms.size()) {
+                    linearterms[deg1_count] = psdp.ele.sup.vap[0][start] + 1;
+                    deg1_count++;
+                }
+            }
+            // Store variable number in pnz[0] 
+            psdp.ele.sup.pnz[0][i] = next_var;
+            // Handle constant term (var 0)
+            if (next_var == 0) {
+                psdp.ele.coef[i] *= -1;
+            }
+            next_var++;
+        } else {
+            // Existing monomial -> use its variable number
+            psdp.ele.sup.pnz[0][i] = it->second;
+            
+            // handle constant term
+            if (it->second == 0) {
+                psdp.ele.coef[i] *= -1;
+            }
+        }
+    }
+    
+    psdp.mDim = next_var - 1;
+    
+    std::cout << "=== variable_numbering_hashmap ===" << std::endl;
+    std::cout << "Assigned " << next_var << " unique variable numbers" << std::endl;
+    std::cout << "Found " << deg1_count << " linear terms" << std::endl;
+    std::cout << "==================================" << std::endl;
+}
+
+// custom get_lsdp that uses hash-based numbering 
+void get_lsdp_eff(class spvec_array & allsups, class mysdp & psdp, vector<int> & linearterms, class spvec_array & xIdxVec){
+#ifdef DEBUG
+    double t1, t2;
+    t1 = (double)clock();
+#endif
+    
+    // Use hash-based variable numbering
+    variable_numbering_hashmap(psdp, linearterms);
+    // Still need to sort for count_upper_nnz
+    vector<int> slist(psdp.ele.sup.pnz_size);
+    for(int i = 0; i < psdp.ele.sup.pnz_size; i++){
+        slist[i] = i;
+    }
+    qsort_psdp(slist, psdp);
+    
+    // computation of nonzero elements of upper triangle matrices
+    count_upper_nnz(slist, psdp);
+    psdp.nBlocks--;
+    
+    // xIdxVec is no longer used in the same way, but keep for compatibility
+    xIdxVec = allsups;
+    
+#ifdef DEBUG
+    t2 = (double)clock();
+    printf("%4.2f sec in get_lsdp_eff\n", (double)(t2-t1)/(double)CLOCKS_PER_SEC);
+#endif
+}
 
 
 void s3r::redundant_OneBounds(class supsetSet & BasisSupports, class supSet & allSup, class supSet & OneSup){
@@ -3075,6 +3176,13 @@ void conversion_part2(
 	get_allsups_in_momentmatrix(sr.Polysys.dimvar(), mmsize, bassinfo_mm, mmsups);
 	sr.timedata[11] = (double)clock();
 	val = getmem();
+
+    // Memory diagnostic 
+    std::cout << "=== MEMORY CHECK: mmsups ===" << std::endl;
+	std::cout << "mmsups.pnz_size = " << mmsups.pnz_size << " monomials" << std::endl;
+	std::cout << "mmsups.vap_size = " << mmsups.vap_size << " total nonzeros" << std::endl;
+	std::cout << "Estimated memory = " << (mmsups.pnz_size * 16 / 1000000.0) << " MB" << std::endl;
+	std::cout << "=============================" << std::endl;
     
 	//generate all supports being consisted POP
     // Allocates a new spvec_array (allsups) big enough to hold all monomials from both
@@ -3224,8 +3332,20 @@ void conversion_part2(
     ////END DEBUG////
 
     //linearize polynomial sdp
-    // This is the function that populates degOneTerms
-    get_lsdp(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
+    // This is the function that populates degOneTerms (old)
+    // get_lsdp(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
+    
+    // much more efficient version of get_lsdp
+    get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec); 
+
+    // // MEMORY DIAGNOSTIC //
+    // // int old_mDim = sdpdata.mDim;
+    // // std::cout << "OLD get_lsdp: mDim = " << old_mDim << std::endl;
+    // get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
+    // int new_mDim = sdpdata.mDim;
+    // std::cout << "NEW get_lsdp_eff: mDim = " << new_mDim << std::endl;
+    // std::cout << "Recall, Old has mDim = 13136331 " << std::endl;
+    // END MEMORY DIAGNOSTIC //
 
     // cout << "Checking out degOneTerms" << endl;
     // cout << "   Has size: " << sr.degOneTerms.size() << endl; 
