@@ -1,3 +1,4 @@
 build/
 build_old/
-data/data/sparsepop_output.dat-s
+data/sparsepop_output.dat-sgi
+data/
