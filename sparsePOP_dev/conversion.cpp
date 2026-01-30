@@ -25,62 +25,99 @@
 #include "conversion.h"
 
 
-std::string monomial_to_key(const spvec_array& arr, int idx) {
-    std::string key;
-    int start = arr.pnz[0][idx];
-    int len = arr.pnz[1][idx];
+// FAST hash function for monomials (replaces slow string-based version)
+struct MonomialHash {
+    const class spvec_array* arr;
     
-    if (start < 0 || len == 0) {
-        return "1";  // constant term
+    size_t operator()(int idx) const {
+        size_t hash = 0;
+        int start = arr->pnz[0][idx];
+        int len = arr->pnz[1][idx];
+        
+        if (start < 0 || len == 0) {
+            return 0;  // Constant term
+        }
+        
+        // Polynomial rolling hash - much faster than string concatenation
+        for (int i = 0; i < len; i++) {
+            hash ^= std::hash<int>()(arr->vap[0][start + i]) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+            hash ^= std::hash<int>()(arr->vap[1][start + i]) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        }
+        return hash;
     }
-    
-    for (int i = 0; i < len; i++) {
-        int var = arr.vap[0][start + i];
-        int exp = arr.vap[1][start + i];
-        key += std::to_string(var) + "^" + std::to_string(exp) + "_";
-    }
-    return key;
-}
+};
 
-// New variable numbering scheme: use hash map instead of merge join
-// doesn't require precomputed allsups -> huge memory reduction
+// Equality comparison for monomials
+struct MonomialEqual {
+    const class spvec_array* arr;
+    
+    bool operator()(int idx1, int idx2) const {
+        int start1 = arr->pnz[0][idx1];
+        int len1 = arr->pnz[1][idx1];
+        int start2 = arr->pnz[0][idx2];
+        int len2 = arr->pnz[1][idx2];
+        
+        // Different lengths = different monomials
+        if (len1 != len2) return false;
+        
+        // Both constant terms
+        if ((start1 < 0 || len1 == 0) && (start2 < 0 || len2 == 0)) return true;
+        
+        // One constant, one not
+        if ((start1 < 0 || len1 == 0) || (start2 < 0 || len2 == 0)) return false;
+        
+        // Compare variable indices and exponents
+        for (int i = 0; i < len1; i++) {
+            if (arr->vap[0][start1 + i] != arr->vap[0][start2 + i]) return false;
+            if (arr->vap[1][start1 + i] != arr->vap[1][start2 + i]) return false;
+        }
+        return true;
+    }
+};
+
+// FAST variable numbering using integer hash map
 void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
-    std::unordered_map<std::string, int> mono_to_var;
-    int next_var = 0;  // Next variable number to assign
+    // Create hash and equality functors pointing to psdp.ele.sup
+    MonomialHash hasher{&psdp.ele.sup};
+    MonomialEqual equal{&psdp.ele.sup};
+    
+    // Map from monomial index (representative) to variable number
+    std::unordered_map<int, int, MonomialHash, MonomialEqual> mono_to_var(100, hasher, equal);
+    
+    int next_var = 0;
     int deg1_count = 0;
     
-    // First pass: assign var numbers to all monomials in psdp.ele.sup
     for (int i = 0; i < psdp.ele.sup.pnz_size; i++) {
-        std::string key = monomial_to_key(psdp.ele.sup, i);
+        auto it = mono_to_var.find(i);
         
-        auto it = mono_to_var.find(key);
         if (it == mono_to_var.end()) {
-            // New monomial so assign next variable number
-            mono_to_var[key] = next_var;
+            // New monomial - assign next variable number
+            mono_to_var[i] = next_var;
             
-            // Check linear (deg 1) term
+            // Check if it's a degree-1 term
             int start = psdp.ele.sup.pnz[0][i];
             int len = psdp.ele.sup.pnz[1][i];
             if (len == 1 && start >= 0 && psdp.ele.sup.vap[1][start] == 1) {
-                // This is a linear term x_k
                 if (deg1_count < (int)linearterms.size()) {
                     linearterms[deg1_count] = psdp.ele.sup.vap[0][start] + 1;
                     deg1_count++;
                 }
             }
-            // Store variable number in pnz[0] 
+            
+            // Store variable number
             psdp.ele.sup.pnz[0][i] = next_var;
-            // Handle constant term (var 0)
+            
             if (next_var == 0) {
                 psdp.ele.coef[i] *= -1;
             }
+            
             next_var++;
         } else {
-            // Existing monomial -> use its variable number
-            psdp.ele.sup.pnz[0][i] = it->second;
+            // Existing monomial
+            int var_num = it->second;
+            psdp.ele.sup.pnz[0][i] = var_num;
             
-            // handle constant term
-            if (it->second == 0) {
+            if (var_num == 0) {
                 psdp.ele.coef[i] *= -1;
             }
         }
@@ -93,6 +130,7 @@ void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
     std::cout << "Found " << deg1_count << " linear terms" << std::endl;
     std::cout << "==================================" << std::endl;
 }
+
 
 // custom get_lsdp that uses hash-based numbering 
 void get_lsdp_eff(class spvec_array & allsups, class mysdp & psdp, vector<int> & linearterms, class spvec_array & xIdxVec){
@@ -3179,7 +3217,7 @@ void conversion_part2(
 	sr.timedata[11] = (double)clock();
 	val = getmem();
     
-    
+
 	// generate all supports being consisted POP
     // Allocates a new spvec_array (allsups) big enough to hold all monomials from both
     // allsups_st (objective/constraints) and mmsups (moment matrices)
@@ -3292,6 +3330,16 @@ void conversion_part2(
 	mmBaSupVect.clear();
 	mmBaSupVect.shrink_to_fit();
 	allSups.supList.clear();
+	
+	polyinfo_st.clear();
+	polyinfo_st.shrink_to_fit();
+	bassinfo_st.clear();
+	bassinfo_st.shrink_to_fit();
+	// Clear bassinfo_mm too
+	bassinfo_mm.clear();
+	bassinfo_mm.shrink_to_fit();
+	// Clear allsups_st
+	allsups_st.del();
     // Done freeing structures
 
 	//generate olynomial sdp
