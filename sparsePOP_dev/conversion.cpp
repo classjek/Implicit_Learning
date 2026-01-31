@@ -3323,7 +3323,6 @@ void conversion_part2(
 	sr.timedata[17] = (double)clock();
 	val = getmem();
 
-
     // Free intermediate structures that are no longer needed
 	BasisSupports.supsetArray.clear();
 	BasisSupports.supsetArray.shrink_to_fit();
@@ -3346,7 +3345,16 @@ void conversion_part2(
 	get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
 	sr.timedata[18] = (double)clock();
 	val = getmem();
-    
+
+    // NEW MEM DIAGNOSTIC // 
+    std::cout << "=== psdp memory check ===" << std::endl;
+    std::cout << "psdp.ele.sup.pnz_size = " << sdpdata.ele.sup.pnz_size << std::endl;
+    std::cout << "psdp.ele.sup.vap_size = " << sdpdata.ele.sup.vap_size << std::endl;
+    long long est_mem = (long long)sdpdata.ele.sup.pnz_size * 28 + (long long)sdpdata.ele.sup.vap_size * 8;
+    std::cout << "Estimated psdp memory = " << est_mem / 1000000.0 << " MB" << std::endl;
+    std::cout << "=========================" << std::endl;
+    // END MEM DIAGNOSTIC // 
+
 	if(sr.param.complementaritySW == YES && removesups.pnz_size > 0){
 		remove_sups(sdpdata, removesups);
 	}
@@ -3392,6 +3400,13 @@ void conversion_part2(
     
     // much more efficient version of get_lsdp
     get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec); 
+
+    // Release no longer needed memory
+    sdpdata.ele.sup.vap[0].clear();
+    sdpdata.ele.sup.vap[0].shrink_to_fit();
+    sdpdata.ele.sup.vap[1].clear();
+    sdpdata.ele.sup.vap[1].shrink_to_fit();
+    sdpdata.ele.sup.vap_size = 0;
 
     // // MEMORY DIAGNOSTIC //
     // // int old_mDim = sdpdata.mDim;
