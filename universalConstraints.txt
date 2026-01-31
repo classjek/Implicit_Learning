@@ -1,0 +1,33 @@
+## Write comments like this
+## Indicate the ground variables you'd like to consider like ";Moses", which adds Moses as a ground symbol
+## All other symbols supplied will be treated as generics
+## Do not use G 
+
+## Constraints
+## Write conditions like this: x!=y , y!=z :   3*Q(x,b) - W(z) >= 0
+## trusts(x,y)*trusts(x,y) - trusts(x,y) = 0
+## trusts(x,y) - trusts(y,x) = 0
+## buys(x)*buys(x) - buys(x) = 0
+
+##neg_enzyme_reaction_path(gene1, enzyme1, reaction1, reaction2, enzyme2, gene2) + enzyme_reaction_path(gene1, enzyme1, reaction1, reaction2, enzyme2, gene2) - 1 = 0
+##neg_enzyme_reaction_path(gene1, enzyme1, reaction1, reaction2, enzyme2, gene2)*function(gene1, enzyme1)*reaction_enzyme(reaction1,enyme1)*reaction(reaction1, reaction2)*reaction_enzyme(reaction2,enzyme2)*function(gene2,enzyme2) = 0
+## arity_four(gene1, enzyme1, reaction1) + second(gene1) - 5 = 0
+## second(gene1) + ewok(enzyme1) - 2 = 0 
+
+## enzyme_pair(enzyme1,enzyme2) - reaction_enzyme(reaction1,enzyme1) - reaction(reaction1,reaction2) - reaction_enzyme(reaction2,enzyme2) + 2 >= 0
+
+## Previous one I was using
+## erp(gene1,enzyme1,enzyme2,gene2) - function(gene1,enzyme1) - enzyme_pair(enzyme1,enzyme2) - function(gene2,enzyme2) + 2 >= 0
+
+## Current one to check coupled block solving idea
+## Want to freeze gene1 and enzyme2, so just set those as a reaction and a compound
+erp(reaction1,enzyme1,compound2,gene2) - function(reaction1,enzyme1) - enzyme_pair(enzyme1,compound2) - function(gene2,compound2) + 2 >= 0
+function(gene2,compound2) * function(gene2,compound2) - function(gene2,compound2) = 0
+
+
+## add bounds 
+## trusts(x,y) >= -1
+## 2 - trusts(x,y) >= 0
+## buys(x) >= -1
+## 2 - buys(x) >= 0
+## x!=y : trusts(x,y) - trusts(y,x) + trusts(x,z) = 0
