@@ -128,7 +128,7 @@ void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
         }
     }
 
-    for (int i = 0; i < psdp.ele.sup.pnz.size(); i++) {
+    for (int i = 0; i < psdp.ele.sup.pnz_size; i++) {
         psdp.ele.sup.pnz[0][i] = var_nums[i];
     }
     
@@ -2447,13 +2447,13 @@ void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile, bool NegBlock
         printf("* File name = %s\n", sdpafile.c_str());
         printf("* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
         printf("* size of bVect = 1 * %3d\n", psdp.mDim);
-        printf("* size of sparseMatrix = %4d * 5\n", size);
+        // printf("* size of sparseMatrix = %4d * 5\n", size);
     
         fprintf(fp, "* SDPA sparse format data\n");
         fprintf(fp, "* File name = %s\n", sdpafile.c_str());
         fprintf(fp, "* mDim = %3d, nBlock = %2d\n", psdp.mDim, psdp.nBlocks);
         fprintf(fp, "* size of bVect = 1 * %3d\n", psdp.mDim);
-        fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
+        // fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
         fprintf(fp, "%3d\n", psdp.mDim);
         fprintf(fp, "%3d\n", psdp.nBlocks);
     
@@ -2542,13 +2542,13 @@ void write_sdpa(/*IN*/class mysdp & psdp, /*OUT*/ string sdpafile, bool NegBlock
         printf("* File name = %s\n", sdpafile.c_str());
         printf("* mDim = %3d, nBlock = %2d\n", psdp.mDim, newNBlocks);
         printf("* size of bVect = 1 * %3d\n", psdp.mDim);
-        printf("* size of sparseMatrix = %4d * 5\n", size);
+        // printf("* size of sparseMatrix = %4d * 5\n", size);
 
         fprintf(fp, "* SDPA sparse format data\n");
         fprintf(fp, "* File name = %s\n", sdpafile.c_str());
         fprintf(fp, "* mDim = %3d, nBlock = %2d\n", psdp.mDim, newNBlocks);
         fprintf(fp, "* size of bVect = 1 * %3d\n", psdp.mDim);
-        fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
+        // fprintf(fp, "* size of sparseMatrix = %4d * 5\n", size);
         fprintf(fp, "%3d\n", psdp.mDim);
         fprintf(fp, "%3d\n", newNBlocks);
 
@@ -3354,8 +3354,8 @@ void conversion_part2(
     // === STREAMING TEST: Generate parallel output for comparison ===
 	std::string streaming_output = "../data/streaming_test.dat-s";
 	std::cout << "\n[STREAMING TEST] Writing streaming output to: " << streaming_output << std::endl;
-	stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, streaming_output);
-	std::cout << "[STREAMING TEST] Done. Compare with original output using diff.\n" << std::endl;
+	stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, streaming_output, binvec, Sqvec);
+	std::cout << "[STREAMING TEST] Done. \n" << std::endl;
 	// === END STREAMING TEST ===
 
 	//generate olynomial sdp

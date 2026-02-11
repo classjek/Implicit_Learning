@@ -42,11 +42,11 @@ struct StreamingContext {
     std::unordered_map<MonomialKey, int, MonomialKeyHash> monomial_to_var;
     
     // Block structure info
-    std::vector<int> block_struct;   // Size of each block (positive = matrix, negative = diagonal)
-    std::vector<int> block_offsets;  // Starting entry index for each block
+    std::vector<int> block_struct; // Size of each block (positive = matrix, negative = diagonal)
+    std::vector<int> block_offsets; // Starting entry index for each block
     
-    int mDim = 0;      // Total number of SDP variables (unique monomials)
-    int nBlocks = 0;   // Total number of blocks
+    int mDim = 0; // Total number of SDP variables (unique monomials)
+    int nBlocks = 0; // Total number of blocks
     
     // Objective coefficients (indexed by variable number)
     std::vector<double> obj_coef;
@@ -58,6 +58,10 @@ struct StreamingContext {
     int current_block = 0;
     // Entry count for current block
     int current_block_entries = 0;
+    int total_entries = 0; // total count of matrix entries written 
+
+    const std::vector<int>* binvec_ptr = nullptr;
+    const std::vector<int>* Sqvec_ptr = nullptr;
     
     
     // Register a monomial, returns its variable number (1-indexed for SDPA format)
@@ -98,7 +102,9 @@ void stream_psdp_to_file(
     int msize,
     std::vector<class poly_info>& polyinfo,
     std::vector<class spvec_array>& bassinfo,
-    const std::string& sdpafile
+    const std::string& sdpafile, 
+    const std::vector<int>& binvec = {}, 
+    const std::vector<int>& Sqvec = {}
 );
 
 void test_streaming_basics(); 

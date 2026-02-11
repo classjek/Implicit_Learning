@@ -114,6 +114,27 @@ MonomialKey::MonomialKey(const spvec_array& sups, int monomial_idx) {
     std::sort(terms.begin(), terms.end());
 }
 
+int simplify_exponent(int var_idx, int exponent,  const std::vector<int>& binvec,  const std::vector<int>& Sqvec) {
+    for (int bv : binvec) {
+        if (var_idx == bv && exponent > 1) return 1;
+    }
+    for (int sv : Sqvec) {
+        if (var_idx == sv) return exponent % 2;
+    }
+    return exponent;
+}
+
+void simplify_key(MonomialKey& key, const std::vector<int>& binvec, const std::vector<int>& Sqvec) {
+    for (auto& [var, exp] : key.terms) {
+        exp = simplify_exponent(var, exp, binvec, Sqvec);
+    }
+    // Remove terms with exponent 0 
+    key.terms.erase(
+        std::remove_if(key.terms.begin(), key.terms.end(),
+            [](const std::pair<int,int>& t) { return t.second == 0; }),
+        key.terms.end());
+}
+
 //=============================================================================
 // StreamingContext implementation
 //=============================================================================
@@ -124,7 +145,8 @@ int StreamingContext::register_monomial(const MonomialKey& key) {
         return it->second;
     }
     // New monomial: assign next variable number (1-indexed)
-    int var_num = ++mDim;
+    int var_num = mDim;
+    mDim++;
     monomial_to_var[key] = var_num;
     return var_num;
 }
@@ -148,9 +170,11 @@ void StreamingContext::start_block(int block_size) {
 void StreamingContext::write_entry(int var_num, int block, int row, int col, double coef) {
     if (is_counting_pass || output_file == nullptr) return;
     if (coef == 0.0) return;
+    if (var_num == 0) coef *= -1; // F_0 convention: negate
     
     // SDPA sparse format: var_num block row col value
-    fprintf(output_file, "%d %d %d %d %.15e\n", var_num, block, row, col, coef);
+    fprintf(output_file, "%d %d %d %d %15.10f\n", var_num, block, row, col, coef);
+    total_entries++;
 }
 
 void StreamingContext::finalize_counting() {
@@ -169,10 +193,10 @@ void StreamingContext::write_header(const std::string& filename) {
     
     fprintf(output_file, "* SDPA sparse format data\n");
     fprintf(output_file, "* File name = %s\n", filename.c_str());
-    fprintf(output_file, "* mDim = %d, nBlock = %d\n", mDim, numBlocks);
-    
+    fprintf(output_file, "* mDim = %3d, nBlock = %2d\n", mDim-1, numBlocks);
+    fprintf(output_file, "* size of bVect = 1 * %3d\n", mDim-1);    
     // Number of variables
-    fprintf(output_file, "%d\n", mDim);
+    fprintf(output_file, "%d\n", mDim-1);
     
     // Number of blocks
     fprintf(output_file, "%d\n", numBlocks);
@@ -184,7 +208,7 @@ void StreamingContext::write_header(const std::string& filename) {
     fprintf(output_file, "\n");
     
     // Objective coefficients (will be filled by convert_obj_stream in pass 2)
-    for (int i = 0; i < mDim; i++) {
+    for (int i = 0; i < mDim-1; i++) {
         fprintf(output_file, "%.15e ", obj_coef[i]);
     }
     fprintf(output_file, "\n");
@@ -207,9 +231,12 @@ void convert_obj_stream(poly_info& polyinfo, StreamingContext& ctx) {
         MonomialKey key(polyinfo.sup, i); 
 
         if (ctx.is_counting_pass) { 
+            simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
             int var_num = ctx.register_monomial(key);
         } else { 
             // pass 2, look up var number and store coefficient
+            simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
+            simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
             int var_num = ctx.get_var_number(key);
             if (var_num > 0 && var_num <= ctx.obj_coef.size()) {
                 ctx.obj_coef[var_num - 1] = polyinfo.coef[i][0];
@@ -233,6 +260,7 @@ void convert_eq_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingCont
                 for (int i = 0; i < num_terms; i++) {
                     if (fabs(polyinfo.coef[i][s]) > 1.0e-12) {
                         MonomialKey key = merge_monomials(polyinfo.sup, i, bassinfo, j);
+                        simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                         ctx.register_monomial(key);
                         // Same monomial appears twice (positive and negative)
                         // but we only need to register once
@@ -250,6 +278,7 @@ void convert_eq_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingCont
                     double coef = polyinfo.coef[i][s];
                     if (fabs(coef) > 1.0e-12) {
                         MonomialKey key = merge_monomials(polyinfo.sup, i, bassinfo, j);
+                        simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                         int var_num = ctx.get_var_number(key);
                         int pos = j + 1 + s;
                         ctx.write_entry(var_num, ctx.nBlocks, pos, pos, coef);
@@ -264,6 +293,7 @@ void convert_eq_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingCont
                     double coef = polyinfo.coef[i][s];
                     if (fabs(coef) > 1.0e-12) {
                         MonomialKey key = merge_monomials(polyinfo.sup, i, bassinfo, j);
+                        simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                         int var_num = ctx.get_var_number(key);
                         int pos = j + 1 + s + move_size;
                         ctx.write_entry(var_num, ctx.nBlocks, pos, pos, -coef);
@@ -287,6 +317,7 @@ void convert_ineq_a_ba1_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                 if (fabs(coef) > 1.0e-12) {
                     // Merge poly term with basis[0]
                     MonomialKey key = merge_monomials(polyinfo.sup, i, bassinfo, 0);
+                    simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                     ctx.register_monomial(key);
                 }
             }
@@ -299,6 +330,7 @@ void convert_ineq_a_ba1_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                 double coef = polyinfo.coef[i][s];
                 if (fabs(coef) > 1.0e-12) {
                     MonomialKey key = merge_monomials(polyinfo.sup, i, bassinfo, 0);
+                    simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                     int var_num = ctx.get_var_number(key);
                     ctx.write_entry(var_num, ctx.nBlocks, s + 1, s + 1, coef);
                 }
@@ -311,10 +343,6 @@ void convert_ineq_a_ba2_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
     int bsize = bassinfo.pnz_size;
     int num_terms = polyinfo.sup.pnz_size;
     int sizeCone = polyinfo.sizeCone;
-
-    if (ctx.is_counting_pass) {
-        std::cout << "  INE_BA2 inputs: bsize=" << bsize << ", num_terms=" << num_terms << ", sizeCone=" << sizeCone << std::endl;
-    }
     
     for (int s = 0; s < sizeCone; s++) {
         if (ctx.is_counting_pass) {
@@ -336,8 +364,10 @@ void convert_ineq_a_ba2_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                         MonomialKey key = merge_key_with_mono(mm_entry, polyinfo.sup, i);
                         
                         if (ctx.is_counting_pass) {
+                            simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                             ctx.register_monomial(key);
                         } else {
+                            simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                             int var_num = ctx.get_var_number(key);
                             ctx.write_entry(var_num, ctx.nBlocks, j + 1, k + 1, coef);
                         }
@@ -366,6 +396,7 @@ void convert_sdp_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingCon
                 for (int i = 0; i < num_terms; i++) {
                     // Merge poly term with moment matrix entry
                     MonomialKey key = merge_key_with_mono(mm_entry, polyinfo.sup, i);
+                    simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                     ctx.register_monomial(key);  // Register ONCE per (j,k,i)
                 }
             }
@@ -382,6 +413,7 @@ void convert_sdp_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingCon
                 
                 for (int i = 0; i < num_terms; i++) {
                     MonomialKey key = merge_key_with_mono(mm_entry, polyinfo.sup, i);
+                    simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                     int var_num = ctx.get_var_number(key);
                     
                     // Iterate through coefficient matrix entries (CSC format)
@@ -427,9 +459,11 @@ void convert_ba1mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
     }
     
     if (ctx.is_counting_pass) { // Pass 1: Register monomial, create block
+        simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
         ctx.register_monomial(key);
         ctx.start_block(-1);
     } else { // Pass 2: Write entry
+        simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
         int var_num = ctx.get_var_number(key);
         ctx.nBlocks++;  // Track block number for this pass
         ctx.write_entry(var_num, ctx.nBlocks, 1, 1, 1.0);
@@ -443,12 +477,6 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
     if (ctx.is_counting_pass) {
         std::cout << "BA2MMT: bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
     }
-
-    // // DEBUG: Print structure info
-    // std::cout << "BA2MMT bsize=" << bsize << ", vap_size=" << bassinfo.vap_size << std::endl;
-    // for (int i = 0; i < bsize && i < 10; i++) {  // limit to first 10
-    //     std::cout << "  pnz[" << i << "]: start=" << bassinfo.pnz[0][i] << ", len=" << bassinfo.pnz[1][i] << std::endl;
-    // }
 
     if (ctx.is_counting_pass) {
         // Pass 1: Register all monomials, create block
@@ -467,32 +495,12 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
             }
             unique_basis.insert(s);
         }
-        std::cout << "BA2MMT: bsize=" << bsize << ", unique_basis_elements=" << unique_basis.size() << std::endl;
-
 
         // Upper triangle: all pairs (i,j) where j >= i
         for (int i = 0; i < bsize; i++) {
             for (int j = i; j < bsize; j++) { // Merge basis[i] with basis[j]
                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
-
-                 // DEBUG: Print first few monomials
-                static int debug_count = 0;
-                bool should_print = ctx.is_counting_pass && (
-                    debug_count < 5 ||                    // First 5
-                    (i == 1 && j <= 3) ||                 // basis[1] × basis[1..3]
-                    (i == 100 && j == 100) ||             // A larger index
-                    (i == 200 && j == 300)                // Another combo
-                );
-                if (should_print) {
-                    std::cout << "  MM[" << i << "," << j << "]: ";
-                    if (key.terms.empty()) std::cout << "(constant)";
-                    for (auto& [v, e] : key.terms) {
-                        std::cout << "x" << v << "^" << e << " ";
-                    }
-                    std::cout << std::endl;
-                    debug_count++;
-                } // end Debug
-
+                simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                 ctx.register_monomial(key);
             }
         }
@@ -501,6 +509,7 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
         for (int i = 0; i < bsize; i++) {
             for (int j = i; j < bsize; j++) {
                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
+                simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                 int var_num = ctx.get_var_number(key);
                 ctx.write_entry(var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
             }
@@ -508,10 +517,13 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
     }
 }
 
-void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std::vector<spvec_array>& bassinfo,const std::string& sdpafile) {
+void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std::vector<spvec_array>& bassinfo,const std::string& sdpafile,const std::vector<int>& binvec,const std::vector<int>& Sqvec) {
 
     StreamingContext ctx;
     ctx.is_counting_pass = true;
+
+    ctx.binvec_ptr = &binvec;
+    ctx.Sqvec_ptr = &Sqvec;
     
     std::cout << "=== Pass 1: Counting ===" << std::endl;
     
@@ -525,37 +537,34 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
         
         if (polyinfo[i].typeCone == EQU) {
             convert_eq_stream(polyinfo[i], bassinfo[i], ctx);
-            std::cout << "EQU[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "EQU[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
         else if (polyinfo[i].typeCone == 0) {
             continue;
         }
         else if (polyinfo[i].typeCone == INE && bassinfo[i].pnz_size == 1) {
             convert_ineq_a_ba1_stream(polyinfo[i], bassinfo[i], ctx);
-            std::cout << "INE_BA1[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "INE_BA1[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
         else if (polyinfo[i].typeCone == INE && bassinfo[i].pnz_size >= 2) {
             convert_ineq_a_ba2_stream(polyinfo[i], bassinfo[i], ctx);
-            std::cout << "INE_BA2[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "INE_BA2[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
         else if (polyinfo[i].typeCone == SDP) {
             convert_sdp_stream(polyinfo[i], bassinfo[i], ctx);
-            std::cout << "SDP[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "SDP[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
         else if (bassinfo[i].pnz_size == 1) {
             convert_ba1mmt_stream(bassinfo[i], ctx);
-            std::cout << "BA1MMT[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "BA1MMT[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
         else if (bassinfo[i].pnz_size >= 2) {
             convert_ba2mmt_stream(bassinfo[i], ctx);
-            std::cout << "BA2MMT[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
+            // std::cout << "BA2MMT[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
     }
     
-    std::cout << "Pass 1 complete: mDim=" << ctx.mDim << ", nBlocks=" << ctx.nBlocks << std::endl;
-    std::cout << "block_struct.size()=" << ctx.block_struct.size() << std::endl;
-    
-    // --- Prepare for Pass 2 ---
+    // prepare for pass 2
     ctx.finalize_counting();
     
     // Open output file
@@ -565,13 +574,10 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
         return;
     }
     
-    std::cout << "=== Pass 2: Writing ===" << std::endl;
-    
     // Reset block counter
     ctx.nBlocks = 0;
     ctx.current_block = 0;
     
-    // --- PASS 2: Write to file ---
     convert_obj_stream(polyinfo[0], ctx);
     
     // Write header after objective (so we have obj_coef populated)
