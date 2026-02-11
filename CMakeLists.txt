@@ -14,6 +14,15 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Release or Debug" FORCE)
 endif()
 
+if(APPLE)
+    execute_process(COMMAND brew --prefix libomp OUTPUT_VARIABLE LIBOMP_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include")
+    set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include")
+    set(OpenMP_C_LIB_NAMES "omp")
+    set(OpenMP_CXX_LIB_NAMES "omp")
+    set(OpenMP_omp_LIBRARY "${LIBOMP_PREFIX}/lib/libomp.dylib")
+endif()
+
 # OpenMP
 find_package(OpenMP REQUIRED)
 
@@ -26,6 +35,7 @@ set(MY_SRC
   src/observations.cpp
   src/metrics.cpp
   src/spop.cpp
+  src/streaming.cpp
 )
 
 # SparsePOP sources - get all .cpp files from sparsePOP_dev/
@@ -36,10 +46,13 @@ list(REMOVE_ITEM SPARSEPOP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/sparsePOP_dev/main.c
 # Executable with ALL sources (yours + SparsePOP)
 add_executable(implicit_learning ${MY_SRC} ${SPARSEPOP_SRC})
 
-# SparsePOP dependency paths
-set(SDPA_DIR "/home/research/jakee/.local")
-set(MUMPS_DIR "/home/research/jakee/src/MUMPS_4.10.0")
-set(SUITESPARSE_DIR "/home/research/jakee/src/SuiteSparse")
+# SparsePOP dependency paths - updated for local setup
+set(SDPA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../sdpa")
+set(MUMPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../MUMPS_4.10.0")
+set(SUITESPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../SuiteSparse")
+# set(SDPA_DIR "/home/research/jakee/.local")
+# set(MUMPS_DIR "/home/research/jakee/src/MUMPS_4.10.0")
+# set(SUITESPARSE_DIR "/home/research/jakee/src/SuiteSparse")
 
 # Include directories - ADD THESE FOR HEADERS
 target_include_directories(implicit_learning PRIVATE
@@ -59,6 +72,7 @@ target_link_directories(implicit_learning PRIVATE
     ${SUITESPARSE_DIR}/COLAMD/Lib
     ${MUMPS_DIR}/lib
     ${SDPA_DIR}/lib
+    /opt/homebrew/lib/gcc/current
 )
 
 # Link all libraries (yours + SparsePOP dependencies)

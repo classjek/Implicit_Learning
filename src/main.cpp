@@ -8,6 +8,7 @@
 #include "executor.h"
 #include "metrics.h"
 #include "spop.h"
+#include "streaming.h"
 
 // int main(int argc, char** argv) {
 int main() {
@@ -74,8 +75,8 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+10); // genes  15
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+20); // enzymes 20 
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+5); // genes  15
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+5); // enzymes 20 
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
@@ -140,6 +141,10 @@ cfg.omp_threads = std::floor(36 / num_observations);
 
 cp.tick("Program End"); 
 cp.print(); 
+
+StreamingContext test_ctx;
+std::cout << "StreamingContext created, mDim=" << test_ctx.mDim << std::endl;
+// test_streaming_basics(); 
 
 //return rc;
 return 0;

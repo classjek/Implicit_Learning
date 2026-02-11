@@ -120,7 +120,8 @@ void Info::printSolutions(class s3r SDPr, string fname){
 		}	
 		if((SDPr.param.SDPsolverSW == 1 && infeasibleSW == 0)||infeasibleSW == -1){
 			printf("# SDPA information \n");
-			string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(),bind2nd(equal_to<char>(),' '));
+			// string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(),bind2nd(equal_to<char>(),' '));
+			string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(), [](char c){ return c == ' '; });
 			sdpaPhase = string(sdpaPhase.begin(), it);
 			printf("          phase value = %s\n",sdpaPhase.c_str());	
 			
@@ -300,7 +301,8 @@ void Info::printSolutions(class s3r SDPr, string fname){
 		}	
 		if((SDPr.param.SDPsolverSW == 1 && infeasibleSW == 0)||infeasibleSW == -1){
 			fprintf(fp,"# SDPA information \n");
-			string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(),bind2nd(equal_to<char>(),' '));
+			// string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(),bind2nd(equal_to<char>(),' '));
+			string::iterator it = remove_if(sdpaPhase.begin(), sdpaPhase.end(), [](char c){ return c == ' '; });
 			sdpaPhase = string(sdpaPhase.begin(), it);
 			fprintf(fp,"          phase value = %s\n",sdpaPhase.c_str());
 			/* SDPA information */

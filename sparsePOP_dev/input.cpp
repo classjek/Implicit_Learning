@@ -384,13 +384,17 @@ void inputGMS(class polysystem & PolySys, string & fname){
 			//cout << "pos2 = " << pos2 << endl;
 			if( (pos2 >0|| pos2 == -1) && pos0 > 0){
 				/* delete white spaces */
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),' '));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),' '));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == ' '; });
 				tmp.erase(it, tmp.end());	
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\n'));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\n'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\n'; });
 				tmp = string(tmp.begin(), it);		
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\t'));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\t'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\t'; });
 				tmp = string(tmp.begin(), it);		
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\r'));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\r'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\r'; });
 				tmp = string(tmp.begin(), it);		
 				if(tmp.size() > 0){
 						line = line + tmp;
@@ -487,14 +491,18 @@ void inputGMS(class polysystem & PolySys, string & fname){
 				line.clear();
 			}else if((pos2 > 0|| pos2 == -1) && pos0 == -1){
 				/* delete white spaces */
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),' '));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),' '));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == ' '; });
 				tmp.erase(it, tmp.end());	
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\n'));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\n'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\n'; });
 				tmp.erase(it, tmp.end());	
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\t'));
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\t'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\t'; });
 				tmp.erase(it, tmp.end());	
-				it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\r'));
-				tmp.erase(it, tmp.end());	
+				// it = remove_if(tmp.begin(), tmp.end(),bind2nd(equal_to<char>(),'\r'));
+				it = remove_if(tmp.begin(), tmp.end(), [](char c){ return c == '\r'; });
+				tmp.erase(it, tmp.end());
 				if(tmp.size() > 0 ){
 					//cout << " tmp.size = " << tmp.length() << endl;
 					//cout << " tmp = " << tmp << endl;

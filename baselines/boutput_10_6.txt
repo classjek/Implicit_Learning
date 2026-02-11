@@ -1,0 +1,59 @@
+Parsed 11835 constraints
+Ground Genes: 495 , Enzymes: 652 , Reactions: 1534 , Compounds: 596
+
+Printing All Constraints(2):
+    constraint[0] takes 4 args: 2.000000 + -enzyme_pair(enzyme1,compound2) + erp(reaction1,enzyme1,compound2,gene2) + -function(gene2,compound2) + -function(reaction1,enzyme1) >= 0
+    constraint[1] takes 4 args: -function(gene2,compound2) + function(gene2,compound2)^2 = 0
+10, 6, 1, 1, 
+Called generateGrounding on all Constraints
+Grounded Atom Map (total 82 atoms):
+finalResults size: 2
+finalResults[0] size: 60
+finalResults[1] size: 10
+
+Solving with SparsePOP...
+------Printing Original Polynomials-------
+0: Type: INEQUALITY, Variables: 3, Degree: 0, Terms: 0        Expression: 0
+1: Type: INEQUALITY, Variables: 3, Degree: 1, Terms: 4        Expression: 2 - x0 + x1 - 2x2 >= 0
+2: Type: EQUALITY, Variables: 3, Degree: 2, Terms: 2        Expression: -x2 + x2^2 = 0
+------Done Printing Original Polynomials-------
+
+==== Initial Bind === 4
+Constraint 0 support: {  }
+Constraint 1 support: { 0, 1, 2 }
+Constraint 2 support: { 0, 1, 2 }
+Clique 0 but i=3 (block for moment matrix): { 0, 1, 2 }
+==================
+   constraint 1 becomes 60 constraints.     gndOff[1] == 0, gndOff[2] == 240, pwidth = 4
+   constraint 2 becomes 10 constraints.     gndOff[2] == 240, gndOff[3] == 260, pwidth = 2
+
+=== variable_numbering_hashmap ===
+Assigned 5198472 unique variable numbers
+Found 82 linear terms
+==================================
+
+=== SDP Problem Info ===
+nBlocks = 61
+- Number of variables: 82
+- Number of constraints: 61
+nBlocks = 61
+========================
+
+Writing SDP problem to: ../data/sparsepop_output.dat-s
+* SDPA sparse format data
+* File name = ../data/sparsepop_output.dat-s
+* mDim = 5198471, nBlock = 61
+* size of bVect = 1 * 5198471
+* size of sparseMatrix = 5201241 * 5
+SDP problem written successfully!
+[Start] Program Start | RSS=8.93 MiB | Peak=8.89 MiB
+[Tick] After parsing | +dt=0.0274465s | total=0.0274465s | RSS=16.18 MiB | Peak=15.95 MiB
+[Tick] After grounding | +dt=0.00631266s | total=0.0337591s | RSS=16.52 MiB | Peak=16.21 MiB
+[Tick] After Sparse Rep | +dt=0.000404672s | total=0.0341638s | RSS=16.54 MiB | Peak=16.34 MiB
+[Tick] After clearing | +dt=0.000164251s | total=0.0343281s | RSS=16.54 MiB | Peak=16.34 MiB
+[Tick] Before SparsePOP Solve | +dt=0.0022374s | total=0.0365655s | RSS=16.63 MiB | Peak=16.34 MiB
+[Tick] Convert POP to SDP | +dt=0.00106847s | total=0.0376339s | RSS=16.89 MiB | Peak=16.59 MiB
+[Tick] Print SDP Problem Info | +dt=12.1091s | total=12.1468s | RSS=1.02 GiB | Peak=1.04 GiB
+[Tick] Writing SDP to file | +dt=0.00125347s | total=12.148s | RSS=1.02 GiB | Peak=1.04 GiB
+[Tick] After SparsePOP Solve | +dt=4.24252s | total=16.3905s | RSS=832.70 MiB | Peak=1.04 GiB
+[Tick] Program End | +dt=0.00024267s | total=16.3908s | RSS=832.70 MiB | Peak=1.04 GiB

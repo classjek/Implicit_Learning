@@ -23,6 +23,7 @@
 #include <string>
 #include <unordered_map>
 #include "conversion.h"
+#include "streaming.h"
 
 
 // FAST hash function for monomials (replaces slow string-based version)
@@ -86,6 +87,8 @@ void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
     
     int next_var = 0;
     int deg1_count = 0;
+
+    std::vector<int> var_nums(psdp.ele.sup.pnz_size); 
     
     for (int i = 0; i < psdp.ele.sup.pnz_size; i++) {
         auto it = mono_to_var.find(i);
@@ -104,8 +107,9 @@ void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
                 }
             }
             
-            // Store variable number
-            psdp.ele.sup.pnz[0][i] = next_var;
+            var_nums[i] = next_var;
+            // // Store variable number
+            // psdp.ele.sup.pnz[0][i] = next_var;
             
             if (next_var == 0) {
                 psdp.ele.coef[i] *= -1;
@@ -115,12 +119,17 @@ void variable_numbering_hashmap(class mysdp & psdp, vector<int> & linearterms) {
         } else {
             // Existing monomial
             int var_num = it->second;
-            psdp.ele.sup.pnz[0][i] = var_num;
+            //psdp.ele.sup.pnz[0][i] = var_num;
+            var_nums[i] = var_num;
             
             if (var_num == 0) {
                 psdp.ele.coef[i] *= -1;
             }
         }
+    }
+
+    for (int i = 0; i < psdp.ele.sup.pnz.size(); i++) {
+        psdp.ele.sup.pnz[0][i] = var_nums[i];
     }
     
     psdp.mDim = next_var - 1;
@@ -3342,8 +3351,16 @@ void conversion_part2(
 	allsups_st.del();
     // Done freeing structures
 
+    // === STREAMING TEST: Generate parallel output for comparison ===
+	std::string streaming_output = "../data/streaming_test.dat-s";
+	std::cout << "\n[STREAMING TEST] Writing streaming output to: " << streaming_output << std::endl;
+	stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, streaming_output);
+	std::cout << "[STREAMING TEST] Done. Compare with original output using diff.\n" << std::endl;
+	// === END STREAMING TEST ===
+
 	//generate olynomial sdp
 	get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
+
 	sr.timedata[18] = (double)clock();
 	val = getmem();
     

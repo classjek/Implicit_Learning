@@ -683,11 +683,14 @@ void pop_params::SetParameters(string pname, int dimvar){
 			/* read line of param file */
 			getline(pf,line);
 			/* delete white spaces */
-			it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),'\n'));
+			// it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),'\n'));
+			it = remove_if(line.begin(), line.end(), [](char c){ return c == '\n'; });
 			line = string(line.begin(), it);		
-			it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),'\t'));
+			// it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),'\t'));
+			it = remove_if(line.begin(), line.end(), [](char c){ return c == '\t'; });
 			line = string(line.begin(), it);		
-			it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),' '));
+			// it = remove_if(line.begin(), line.end(),bind2nd(equal_to<char>(),' '));
+			it = remove_if(line.begin(), line.end(), [](char c){ return c == ' '; });
 			line = string(line.begin(), it);		
 			pos1 = line.find(",");
 			pos2 = line.find(",",pos1+1);
