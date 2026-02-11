@@ -29,18 +29,13 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
     // Convert POP to SDP
     std::vector<std::vector<double>> fixedVar(2);
     makeSDPr(POP, sdpdata, info, gmsFilePath, fixedVar, fromGen);
+    cp.tick("SDP Conversion Complete");
 
-    cp.tick("Print SDP Problem Info");
+
     std::cout << "\n=== SDP Problem Info ===" << std::endl;
-    std::cout << "nBlocks = " << sdpdata.nBlocks << std::endl;
     std::cout << "- Number of variables: " << POP.Polysys.dimVar << std::endl;
     std::cout << "- Number of constraints: " << POP.Polysys.numSys << std::endl;
-    std::cout << "nBlocks = " << sdpdata.nBlocks << std::endl;
-    // for(int i=1; i <= sdpdata.nBlocks; i++){
-    //     if(sdpdata.block_info[1][i] > 0){
-    //         std::cout << "Block " << i << ": size = " << abs(sdpdata.bLOCKsTruct[i]) << std::endl;
-    //     }
-    // }
+    std::cout << "- SDP file: ../data/sparsepop_output.dat-s" << std::endl;
 
     if (info.infeasibleSW != 0) {
         std::cout << "WARNING: Problem detected as infeasible before solving!" << std::endl;
@@ -48,14 +43,25 @@ void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vecto
     }
     std::cout << "========================\n" << std::endl;
 
+    // std::cout << "\n=== SDP Problem Info ===" << std::endl;
+    // std::cout << "nBlocks = " << sdpdata.nBlocks << std::endl;
+    // std::cout << "- Number of variables: " << POP.Polysys.dimVar << std::endl;
+    // std::cout << "- Number of constraints: " << POP.Polysys.numSys << std::endl;
+    // std::cout << "nBlocks = " << sdpdata.nBlocks << std::endl;
+    // // for(int i=1; i <= sdpdata.nBlocks; i++){
+    // //     if(sdpdata.block_info[1][i] > 0){
+    // //         std::cout << "Block " << i << ": size = " << abs(sdpdata.bLOCKsTruct[i]) << std::endl;
+    // //     }
+    // // }
 
-    cp.tick("Writing SDP to file");
-    // std::string outputFile = "../data/sparsepop_output.sdpa";; 
-    std::string outputFile = "../data/sparsepop_output.dat-s"; // for SDPARA read-in
-    std::cout << "Writing SDP problem to: " << outputFile << std::endl;
-    // write_sdpa(sdpdata, outputFile);
-    write_sdpa(sdpdata, outputFile, true); // write with no negative for LoRADs
-    std::cout << "SDP problem written successfully!" << std::endl;
+
+    // cp.tick("Writing SDP to file");
+    // // std::string outputFile = "../data/sparsepop_output.sdpa";; 
+    // std::string outputFile = "../data/sparsepop_output.dat-s"; // for SDPARA read-in
+    // std::cout << "Writing SDP problem to: " << outputFile << std::endl;
+    // // write_sdpa(sdpdata, outputFile);
+    // write_sdpa(sdpdata, outputFile, true); // write with no negative for LoRADs
+    // std::cout << "SDP problem written successfully!" << std::endl;
     
     // Solve with SDPA
     // Do NOT SOLVE WITH SPARSEPOP'S INTERNAL SOLVER

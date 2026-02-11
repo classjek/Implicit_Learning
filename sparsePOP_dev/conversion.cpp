@@ -3351,6 +3351,23 @@ void conversion_part2(
 	allsups_st.del();
     // Done freeing structures
 
+    // Streaming Approach
+    sr.timedata[18] = (double)clock();
+    val = getmem();
+    
+    // Streaming writes SDP directly to file with simplifications applied
+    std::string outputFile = "../data/sparsepop_output.dat-s";
+    std::cout << "\nWriting SDP to: " << outputFile << std::endl;
+    stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
+    std::cout << "SDP file written successfully!" << std::endl;
+    
+    sr.timedata[19] = (double)clock();
+    val = getmem();
+    // End streaming
+    
+    sr.timedata[20] = (double)clock();
+    val = getmem();
+
     // // === STREAMING TEST: Generate parallel output for comparison ===
 	// std::string streaming_output = "../data/streaming_test.dat-s";
 	// std::cout << "\n[STREAMING TEST] Writing streaming output to: " << streaming_output << std::endl;
@@ -3358,58 +3375,59 @@ void conversion_part2(
 	// std::cout << "[STREAMING TEST] Done. \n" << std::endl;
 	// // === END STREAMING TEST ===
 
-	//generate olynomial sdp
-	get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
+    ///// REPLACED BY STREAMING ////
+	// //generate olynomial sdp
+	// get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
 
-	sr.timedata[18] = (double)clock();
-	val = getmem();
+	// sr.timedata[18] = (double)clock();
+	// val = getmem();
     
-	if(sr.param.complementaritySW == YES && removesups.pnz_size > 0){
-		remove_sups(sdpdata, removesups);
-	}
-	if(sr.param.binarySW == YES  && binvec.empty() == false){
-		remove_Binarysups(sdpdata, binvec);
-	}else{
-    		//sdpdata.disp();
-	}
-	if(sr.param.SquareOneSW == YES  && Sqvec.empty() == false){
-		//cout << "Before" << endl;
-		remove_SquareOnesups(sdpdata, Sqvec);
-		//cout << "After" << endl;
-	}
-    sr.timedata[19] = (double)clock();
-	val = getmem();
+	// if(sr.param.complementaritySW == YES && removesups.pnz_size > 0){
+	// 	remove_sups(sdpdata, removesups);
+	// }
+	// if(sr.param.binarySW == YES  && binvec.empty() == false){
+	// 	remove_Binarysups(sdpdata, binvec);
+	// }else{
+    // 		//sdpdata.disp();
+	// }
+	// if(sr.param.SquareOneSW == YES  && Sqvec.empty() == false){
+	// 	//cout << "Before" << endl;
+	// 	remove_SquareOnesups(sdpdata, Sqvec);
+	// 	//cout << "After" << endl;
+	// }
+    // sr.timedata[19] = (double)clock();
+	// val = getmem();
 
-    std::vector<bool> has_deg1(sr.Polysys.dimVar, false);
+    // std::vector<bool> has_deg1(sr.Polysys.dimVar, false);
 
-    //linearize polynomial sdp
-    // This is the function that populates degOneTerms (old)
-    // get_lsdp(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
+    // //linearize polynomial sdp
+    // // This is the function that populates degOneTerms (old)
+    // // get_lsdp(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
     
-    // much more efficient version of get_lsdp
-    get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec); 
+    // // much more efficient version of get_lsdp
+    // get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec); 
 
-    // // MEMORY DIAGNOSTIC //
-    // // int old_mDim = sdpdata.mDim;
-    // // std::cout << "OLD get_lsdp: mDim = " << old_mDim << std::endl;
-    // get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
-    // int new_mDim = sdpdata.mDim;
-    // std::cout << "NEW get_lsdp_eff: mDim = " << new_mDim << std::endl;
-    // std::cout << "Recall, Old has mDim = 13136331 " << std::endl;
-    // END MEMORY DIAGNOSTIC //
+    // // // MEMORY DIAGNOSTIC //
+    // // // int old_mDim = sdpdata.mDim;
+    // // // std::cout << "OLD get_lsdp: mDim = " << old_mDim << std::endl;
+    // // get_lsdp_eff(allsups, sdpdata, sr.degOneTerms, sr.xIdxVec);
+    // // int new_mDim = sdpdata.mDim;
+    // // std::cout << "NEW get_lsdp_eff: mDim = " << new_mDim << std::endl;
+    // // std::cout << "Recall, Old has mDim = 13136331 " << std::endl;
+    // // END MEMORY DIAGNOSTIC //
 
-    // cout << "Checking out degOneTerms" << endl;
-    // cout << "   Has size: " << sr.degOneTerms.size() << endl; 
-    // for (int i = 0; i < sr.degOneTerms.size(); i++){
-    //     cout << "   " << i << ": " << sr.degOneTerms[i] << endl;
-    // }
+    // // cout << "Checking out degOneTerms" << endl;
+    // // cout << "   Has size: " << sr.degOneTerms.size() << endl; 
+    // // for (int i = 0; i < sr.degOneTerms.size(); i++){
+    // //     cout << "   " << i << ": " << sr.degOneTerms[i] << endl;
+    // // }
     
-    //
-    // 2009-06-09 Waki
-    // Remove the function to write SDP as the sdpa sparse format
-    sr.timedata[20] = (double)clock();
-	val = getmem();
-    //cout << "20 " << sr.timedata[20] << endl;
+    // //
+    // // 2009-06-09 Waki
+    // // Remove the function to write SDP as the sdpa sparse format
+    // sr.timedata[20] = (double)clock();
+	// val = getmem();
+    // //cout << "20 " << sr.timedata[20] << endl;
 #ifdef DEBUG
 	double t;
 	for(int i=0; i<20; i++){
