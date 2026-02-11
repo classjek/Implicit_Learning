@@ -3351,12 +3351,12 @@ void conversion_part2(
 	allsups_st.del();
     // Done freeing structures
 
-    // === STREAMING TEST: Generate parallel output for comparison ===
-	std::string streaming_output = "../data/streaming_test.dat-s";
-	std::cout << "\n[STREAMING TEST] Writing streaming output to: " << streaming_output << std::endl;
-	stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, streaming_output, binvec, Sqvec);
-	std::cout << "[STREAMING TEST] Done. \n" << std::endl;
-	// === END STREAMING TEST ===
+    // // === STREAMING TEST: Generate parallel output for comparison ===
+	// std::string streaming_output = "../data/streaming_test.dat-s";
+	// std::cout << "\n[STREAMING TEST] Writing streaming output to: " << streaming_output << std::endl;
+	// stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, streaming_output, binvec, Sqvec);
+	// std::cout << "[STREAMING TEST] Done. \n" << std::endl;
+	// // === END STREAMING TEST ===
 
 	//generate olynomial sdp
 	get_psdp(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, sdpdata);
@@ -3381,27 +3381,6 @@ void conversion_part2(
 	val = getmem();
 
     std::vector<bool> has_deg1(sr.Polysys.dimVar, false);
-
-    ////DEBUG////
-    // for (int i = 0; i < allsups.pnz_size; ++i) {     // Loop over all supports (monomials) in allsups
-    //     int start = allsups.pnz[0][i];
-    //     int len = allsups.pnz[1][i];
-    //     // Check if this monomial is degree 1
-    //     if (len == 1 && allsups.vap[1][start] == 1) {
-    //         int var_idx = allsups.vap[0][start];
-    //         has_deg1[var_idx] = true;
-    //     }
-    // }
-    // for (int i = 0; i < sr.Polysys.dimVar; ++i) {     // Print a summary
-    //     if (!has_deg1[i]) {
-    //         std::cout << "WARNING: Variable " << i
-    //                 << " does NOT appear as a degree-1 monomial in the moment matrix. "
-    //                 << "degOneTerms[" << i << "] will be 0 and its value will NOT be extractable!" << std::endl;
-    //     } else {
-    //         std::cout << "Variable " << i << " will be extractable (has degree-1 moment)." << std::endl;
-    //     }
-    // }
-    ////END DEBUG////
 
     //linearize polynomial sdp
     // This is the function that populates degOneTerms (old)

@@ -75,8 +75,8 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+5); // genes  15
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+5); // enzymes 20 
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+8); // genes  15
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+6); // enzymes 20 
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
@@ -130,29 +130,8 @@ cp.tick("After SparsePOP Solve");
 int num_observations = 6;
 cfg.omp_threads = std::floor(36 / num_observations);
 
-// std::cout << "\nThreads: " << cfg.omp_threads << std::endl;
-// // Later pass vector of partialobservations and equivalence class map to executor
-// Executor ex(cfg);
-
-// run should return information about bounds of each equivalence class per partial observation
-// Depends how equivalence classes are stored
-// int rc = ex.run();
-// std::cout << "[main] done, rc=" << rc << "\n" << std::endl;
-
 cp.tick("Program End"); 
 cp.print(); 
 
-StreamingContext test_ctx;
-std::cout << "StreamingContext created, mDim=" << test_ctx.mDim << std::endl;
-// test_streaming_basics(); 
-
-//return rc;
 return 0;
 }
-
-// 1 Thread
-// [Tick] Before SparsePOP Solve | +dt=0.0116062s | total=0.0779765s | RSS=17.55 MiB | Peak=17.55 MiB
-// [Tick] After SparsePOP Solve | +dt=76.8802s | total=76.9582s | RSS=384.98 MiB | Peak=607.27 MiB
-// 6 threads
-// [Tick] Before SparsePOP Solve | +dt=0.0122424s | total=0.0925908s | RSS=17.47 MiB | Peak=17.47 MiB
-// [Tick] After SparsePOP Solve | +dt=69.7992s | total=69.8918s | RSS=386.09 MiB | Peak=608.64 MiB
