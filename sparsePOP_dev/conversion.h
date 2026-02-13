@@ -30,6 +30,8 @@
 #include "clique.h"
 #include "Parameters.h"
 
+#include "../include/domain.h"
+
 /*** conversion ****************************************/
 void conversion_part1(
         /*IN*/  class s3r & sr,
@@ -42,7 +44,7 @@ void conversion_part2(
         /*IN*/  class s3r & sr,
         vector<vector<double>>& fixedVar,
         vector<set<int>>& expectMap,
-        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>>& fromGen,
+        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>, vector<domain::BoundConstraint>>& fromGen,
         vector<int> & oriidx,
         class SparseMat & extofcsp,
         /*OUT*/ class mysdp & sdpdata);

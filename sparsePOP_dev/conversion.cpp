@@ -1409,6 +1409,15 @@ void s3r::genBasisSupports(class supsetSet & BasisSupports){
                 continue; // go to next constraint
             }
 
+            // skip linear bounds (degree-1 single variable)
+            if (this->Polysys.polyDegree(i) == 1 && nVars == 1) {
+                List.clear();
+                Moment.dimVar = this->Polysys.dimVar;
+                Moment.setSupSet(nDim, List);
+                BasisSupports.push(Moment);
+                continue;
+            }
+
             sosDim=this->param.relax_Order-(int)ceil((double)(this->Polysys.polyDegree(i))/2.0);
 
             if(this->Polysys.polyTypeCone(i)==EQU){
@@ -3312,7 +3321,7 @@ void conversion_part2(
         /*IN*/  class s3r & sr,
         vector<vector<double>>& fixedVar,
         vector<set<int>>& expectMap,
-        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>>& fromGen,
+        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>, vector<domain::BoundConstraint>>& fromGen,
         vector<int> & oriidx,
         class SparseMat & extofcsp,
         /*OUT*/ class mysdp & sdpdata) {
@@ -3393,7 +3402,7 @@ void conversion_part2(
     vector<int> gndOff = get<3>(fromGen); // holds offset used to access the gndData for each polynomial
     vector<int> gndData = get<4>(fromGen); // every valid grounding vector, stored contiguously
     vector<double> observedValueById = get<5>(fromGen); 
-
+    vector<domain::BoundConstraint> bounds = get<6>(fromGen); 
 
     // DEBUG: Check what we received
     int numObserved = 0;
@@ -3444,6 +3453,11 @@ void conversion_part2(
         addPolynomialGround(sr, i, pwidth, gndOff, gndData, tempBindices, newLo, newUp, bindToNew, expectMap, observedValueById);
     }
 
+    vector<set<int>> boundBindices;
+    for (const auto& bound : bounds) {
+        boundBindices.push_back({bound.atomID});
+    }
+
     // Recompute actual number of variables after substitution
     set<int> usedVarIDs;
     for (const auto& bindSet : tempBindices) {
@@ -3459,6 +3473,48 @@ void conversion_part2(
     // After new polynomials and their variables have been added, update the other things in the system to match
     // form update Bindices
     vector<list<int>> newBindices = createNewBind(tempBindices, bindToNew, newNumConst, sr.maxcliques.numcliques);
+
+
+    if (!bounds.empty()) {    
+        for (size_t i = 0; i < bounds.size(); i++) {
+            const auto& bound = bounds[i];
+            int atomID = bound.atomID;
+        
+            cout << "  Adding bound: atomID=" << atomID << (bound.isLower ? " >= " : " <= ") << bound.value << endl;
+        
+            // Create polynomial
+            class poly boundPoly;
+            boundPoly.setNoSys(sr.Polysys.polynomial.size());
+            boundPoly.setDimVar(newNumVars);
+            boundPoly.setTypeSize(INE, 1);
+            boundPoly.degree = 1;
+        
+            // Variable monomial
+            class mono varMono;
+            varMono.allocCoef(1);
+            varMono.Coef[0] = bound.isLower ? 1.0 : -1.0;
+            varMono.supIdx.push_back(atomID);
+            varMono.supVal.push_back(1);
+            boundPoly.addMono(varMono);
+        
+            // Constant monomial
+            class mono constMono;
+            constMono.allocCoef(1);
+            constMono.Coef[0] = bound.isLower ? -bound.value : bound.value;
+            boundPoly.addMono(constMono);
+        
+            boundPoly.noTerms = 2;
+        
+            // Add to polynomial system
+            sr.Polysys.polynomial.push_back(boundPoly);
+        
+            // Add to bindices (convert set to list)
+            list<int> boundList(boundBindices[i].begin(), boundBindices[i].end());
+            newBindices.push_back(boundList);
+        
+            newNumConst++;
+        }
+    }
 
     sr.bindices = newBindices; 
 
@@ -3488,17 +3544,6 @@ void conversion_part2(
 
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
-
-    // Printing out expectMap
-    // Used for enforcing expectations after grounding
-    // for (int i = 0; i < expectMap.size(); i++){
-    //     cout << "expectMap[" << i << "] = ";
-    //     for(auto& elem : expectMap[i]){
-    //         cout << elem << ", "; 
-    //     }
-    //     cout << endl;
-    // }
-
 
     cout << endl;
     //////////////////////////////////

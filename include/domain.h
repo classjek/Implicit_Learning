@@ -35,6 +35,12 @@ struct GroundNames { // stores TYPED ground names
     std::unordered_set<std::string> compounds;
 };
 
+struct BoundConstraint {
+    int atomID; 
+    double value;
+    bool isLower; // true for >=, false for <=
+};
+
 // Initialize the global predicate signatures map
 void initializePredicateSignatures();
 

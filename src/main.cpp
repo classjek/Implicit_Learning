@@ -92,6 +92,16 @@ groundNamesTest[0].push_back("g100037840");
 groundNamesTest[1].push_back("ec_3_1_3_48");
 groundNamesTest[1].push_back("ec_3_1_3_48");
 
+for (auto& elem : groundNamesTest[0]) { 
+    std::cout << "gene: " << elem << std::endl;
+}
+for (auto& elem : groundNamesTest[1]) { 
+    std::cout << "enzy: " << elem << std::endl;
+}
+std::cout << std::endl;
+
+
+
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 
 std::cout << std::endl;
@@ -101,14 +111,32 @@ std::cout << std::endl;
 domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
 cp.tick("After grounding"); 
 
+
+// inserted constraint will be function(g100036608, ec_3_4_21) >= 0.5
+std::string atomName = "function(g100036608,ec_3_4_21)";  // No spaces after commas!
+std::vector<domain::BoundConstraint> bounds; 
+size_t hash = std::hash<std::string>{}(atomName);
+auto it = groundMap.find(hash);
+if (it == groundMap.end()){
+    std::cerr << "Warning! Trying to place bound on unknown ground atom." << std::endl;
+} else {
+    bounds.push_back({
+        it->second, // atomID
+        0.1,
+        false 
+    });
+    std::cout << " - Added bound: " << atomName << " >= 0.5 (atomID=" << it->second << ") - \n" << std::endl;
+}
+
+
 // build observed values from facts
 // Build observed values from ground facts
 std::cout << "We have " << constraints.size() << " constraints" << std::endl;
 auto test_constraints = std::vector<kb::Constraint>(constraints.begin(), constraints.begin() + std::min(5, (int)constraints.size()));
 std::cout << "Called with " << test_constraints.size() << " constraints" << std::endl;
-std::cout << test_constraints[0].poly.toString() << std::endl;
-std::cout << test_constraints[1].poly.toString() << std::endl;
-std::cout << test_constraints[2].poly.toString() << std::endl;
+// std::cout << test_constraints[0].poly.toString() << std::endl;
+// std::cout << test_constraints[1].poly.toString() << std::endl;
+// std::cout << test_constraints[2].poly.toString() << std::endl;
 std::vector<double> observedValueById = domain::buildObservedValues(constraints, groundMap, groundMap.size());
 int observedCount = 0;
 
@@ -134,24 +162,6 @@ std::vector<int> gndOff; // holds offset used to access the gndData for each pol
 std::vector<int> gndData; // every valid grounding vector, stored contiguously
 domain::createGroundingRepresentation(finalResults, polyWidth, gndOff, gndData);
 cp.tick("After Sparse Rep"); 
-
-
-std::cout << "\n=== Where is Atom 3? ===" << std::endl;
-for (int i = 0; i < polyWidth.size(); i++) {
-    if (polyWidth[i] == 0) continue;
-    int start = gndOff[i];
-    int end = gndOff[i+1];
-    for (int idx = start; idx < end; idx++) {
-        if (gndData[idx] == 3) {
-            int instance = (idx - start) / polyWidth[i];
-            int posInInstance = (idx - start) % polyWidth[i];
-            std::cout << "  Atom 3 found in constraint " << i 
-                     << ", instance " << instance 
-                     << ", position " << posInInstance << std::endl;
-        }
-    }
-}
-std::cout << "======================\n" << std::endl;
 
 
 std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
@@ -182,7 +192,7 @@ std::string fileName = domain::writeGMSFile(universal_constraints);
 
 /// Interfacing with SparsePOP /// 
 std::cout << "Solving with SparsePOP..." << std::endl;
-std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData, observedValueById);
+std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>, std::vector<domain::BoundConstraint>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData, observedValueById, bounds);
 
 cp.tick("Before SparsePOP Solve");
 solveWithSparsePOP(fileName, fromGen, cp);

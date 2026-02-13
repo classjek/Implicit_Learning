@@ -178,7 +178,7 @@ void InputResultSDPA(SDPA & Problem, class Info & info, double ObjscaleVal, doub
     info.gap = info.mu*n;
 }
 
-void makeSDPr(class s3r &POP, class mysdp & sdpdata, class Info & info, string & pname, vector<vector<double> > & fixedVar, tuple<int,int, vector<int>, vector<int>, vector<int>, std::vector<double>>& fromGen){
+void makeSDPr(class s3r &POP, class mysdp & sdpdata, class Info & info, string & pname, vector<vector<double> > & fixedVar, tuple<int,int, vector<int>, vector<int>, vector<int>, std::vector<double>, std::vector<domain::BoundConstraint>>& fromGen){
     /* read GMS file */
     POP.problemName = pname;
 
