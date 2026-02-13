@@ -1399,6 +1399,16 @@ void s3r::genBasisSupports(class supsetSet & BasisSupports){
         nVars = bindices[i].size();
         List.clear();
         if(i<this->Polysys.numsys()){
+            // special case for degree 0 constraints
+            if (this->Polysys.polyDegree(i) == 0){
+                // give it an empty basis
+                List.clear();
+                Moment.dimVar = this->Polysys.dimVar;
+                Moment.setSupSet(nDim, List);
+                BasisSupports.push(Moment);
+                continue; // go to next constraint
+            }
+
             sosDim=this->param.relax_Order-(int)ceil((double)(this->Polysys.polyDegree(i))/2.0);
 
             if(this->Polysys.polyTypeCone(i)==EQU){
@@ -1859,6 +1869,7 @@ void get_subjectto_polys_and_basups(
     list<int>::iterator lit;
     for(int i=1;i<stsize+1;i++){
         initialize_polyinfo(polysys, i, polyinfo_st[i-1]);
+
         bdim = BaIndices[i].size();
         bassinfo_st[i-1].dim = bdim;
         bassinfo_st[i-1].deg = basups[i].deg();
@@ -1923,57 +1934,105 @@ void count_lexall_num_a_nnz(/*IN*/int dimvar, int deg, /*OUT*/int & num, int & n
 }
 void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<class poly_info> & polyinfo_st, vector<class bass_info> & bassinfo_st, class spvec_array & allsups){
 
+    cout << "Calling get_allsups" << endl;
+    
+    // DEBUG: Check all incoming data
+    cout << "\n=== get_allsups DEBUG ===" << endl;
+    cout << "dim = " << dim << ", stsize = " << stsize << endl;
+    cout << "polyinfo_obj: pnz_size=" << polyinfo_obj.sup.pnz_size 
+         << ", vap_size=" << polyinfo_obj.sup.vap_size << endl;
+    
+    for (int i = 0; i < stsize; i++) {
+        cout << "  [" << i << "] polyinfo: pnz=" << polyinfo_st[i].sup.pnz_size 
+             << ", vap=" << polyinfo_st[i].sup.vap_size
+             << " | bassinfo: pnz=" << bassinfo_st[i].sup.pnz_size
+             << ", vap=" << bassinfo_st[i].sup.vap_size
+             << ", dim=" << bassinfo_st[i].dim
+             << ", deg=" << bassinfo_st[i].deg << endl;
+        
+        // Check for suspicious values
+        if (polyinfo_st[i].sup.pnz_size < 0 || polyinfo_st[i].sup.vap_size < 0 ||
+            bassinfo_st[i].sup.pnz_size < 0 || bassinfo_st[i].sup.vap_size < 0) {
+            cout << "    *** NEGATIVE SIZE DETECTED! ***" << endl;
+        }
+        if (polyinfo_st[i].sup.pnz_size > 100000 || polyinfo_st[i].sup.vap_size > 100000) {
+            cout << "    *** UNREASONABLY LARGE SIZE! ***" << endl;
+        }
+    }
+    cout << "========================\n" << endl;
+
     allsups.dim = dim;
     if(stsize > 0){
-	
-	vector<Vec3*> InfoTable;
+        // first filter out all degree-0 constraints (pure constraints with no variables)
+        // they have empty supports and break minkovsum operations
+        // Build InfoTable with filtering for degree-0 constraints
+        vector<Vec3*> InfoTable;
+        vector<int> infolist;  // Maps InfoTable index to original constraint index
+    
         for(int i=0; i<stsize; i++){
-		Vec3* vec = new Vec3;
-		vec->typeCone = polyinfo_st[i].typeCone;
-		vec->dim      = bassinfo_st[i].dim;
-		vec->deg      = bassinfo_st[i].deg;
-		InfoTable.push_back(vec);
-        }
-	for(int i=0; i<stsize;i++){
-		InfoTable[i]->no = i;
-	}
-	sort(InfoTable.begin(), InfoTable.end(), Vec3::compare);	
+            // Skip degree-0 constraints (pure constants with no variables)
+            if(bassinfo_st[i].deg == 0 || bassinfo_st[i].sup.pnz_size == 0) {
+                cout << "  Skipping constraint " << i << " in get_allsups (degree=0, constant)" << endl;
+                continue;
+            }
         
-        vector<int> stand(3);
-        vector<int> infolist(stsize);
-        for(int i=0;i<stsize;i++){
-            //infolist[i] = i;
-		Vec3* vec = InfoTable[i];
-            infolist[i] = vec->no;
+            Vec3* vec = new Vec3;
+            vec->typeCone = polyinfo_st[i].typeCone;
+            vec->dim      = bassinfo_st[i].dim;
+            vec->deg      = bassinfo_st[i].deg;
+            vec->no       = i;  // Store original index
+            InfoTable.push_back(vec);
+            infolist.push_back(i);
         }
-        //sortInfoTable(InfoTable, infolist);
-        
+        // Update stsize to filtered count
+        int filtered_stsize = InfoTable.size();
+    
+        if (filtered_stsize == 0) {
+            // All constraints were degree-0
+            allsups.alloc(polyinfo_obj.sup.vap_size*2, polyinfo_obj.sup.pnz_size*2);
+            pushsups(polyinfo_obj.sup, allsups);
+            cout << "Done calling get_allsups (all constraints filtered)" << endl;
+            return;
+        }
+    
+        // Sort filtered InfoTable
+        sort(InfoTable.begin(), InfoTable.end(), Vec3::compare);
+    
+        // Rebuild infolist to reflect sorted order
+        vector<int> sorted_infolist(filtered_stsize);
+        for(int i=0; i<filtered_stsize; i++){
+            sorted_infolist[i] = InfoTable[i]->no;
+        }
+        infolist = sorted_infolist;
+
+        // Continue with size calculations using filtered data
         int nzele=0;
         int numele = 0;
         nzele  += polyinfo_obj.sup.pnz_size;
         numele += polyinfo_obj.sup.vap_size;
-        
+
         int k=0;
-	Vec3* cVec = InfoTable[0];
-        while(k < stsize && cVec->typeCone == EQU){
+        Vec3* cVec = InfoTable[0];
+        while(k < filtered_stsize && cVec->typeCone == EQU){
             nzele += polyinfo_st[infolist[k]].sup.vap_size * bassinfo_st[infolist[k]].sup.pnz_size
-                    + bassinfo_st[infolist[k]].sup.vap_size * polyinfo_st[infolist[k]].sup.pnz_size;
+                + bassinfo_st[infolist[k]].sup.vap_size * polyinfo_st[infolist[k]].sup.pnz_size;
             numele += polyinfo_st[infolist[k]].sup.pnz_size * bassinfo_st[infolist[k]].sup.pnz_size;
             k++;
-		cVec = InfoTable[k];
+            if(k < filtered_stsize) cVec = InfoTable[k];
         }
+    
         int bpsize, bvsize;
-        while(k<stsize){
+        while(k<filtered_stsize){
             count_lexall_num_a_nnz(cVec->dim, 2*cVec->deg, bpsize, bvsize);
             nzele += polyinfo_st[infolist[k]].sup.vap_size * bpsize
-                    + bvsize * polyinfo_st[infolist[k]].sup.pnz_size;
+                + bvsize * polyinfo_st[infolist[k]].sup.pnz_size;
             numele += polyinfo_st[infolist[k]].sup.pnz_size * bpsize;
-            
+        
             k++;
-		if(k == stsize){
-			break;
-		}
-		cVec = InfoTable[k];
+            if(k == filtered_stsize){
+                break;
+            }
+            cVec = InfoTable[k];
         }
         
         allsups.alloc(numele*2, nzele*2);
@@ -1982,18 +2041,19 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
         k=0;
         class spvec_array minsups;
 		cVec = InfoTable[k];
-	while(k < stsize && cVec->typeCone == EQU){
+	while(k < filtered_stsize && cVec->typeCone == EQU){
 		minkovsum(polyinfo_st[infolist[k]].sup, bassinfo_st[infolist[k]].sup, minsups);
 		pushsups(minsups, allsups);
 		k++;
-		cVec = InfoTable[k];
+        if(k < filtered_stsize) cVec = InfoTable[k];
+		// cVec = InfoTable[k];
 	}
         
         class spvec_array lexallsups;
         
         bool issame = false;
         vector<int> onpattern(dim);
-        while(k<stsize){
+        while(k<filtered_stsize){
             //class spvec_array lexallsups;
             
             if(issame == false){
@@ -2013,7 +2073,7 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
             minkovsum(polyinfo_st[infolist[k]].sup, lexallsups, minsups);
             pushsups(minsups, allsups);
             k++;
-            if(k<stsize){
+            if(k<filtered_stsize){
 		 cVec = InfoTable[k];
 		Vec3* dVec = InfoTable[k-1];
                 if(cVec->dim == dVec->dim){
@@ -2029,7 +2089,7 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
                 }
             }
         }
-	for(int i=0; i<stsize;i++){
+	for(int i=0; i<filtered_stsize;i++){
 		delete InfoTable[i];
 	}
         InfoTable.clear();
@@ -2049,6 +2109,7 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
         //get all supports of objective function
         pushsups(polyinfo_obj.sup, allsups);
     }
+    cout << "Done calling get_allsups" << endl;
 }
 
 void genLexFixDeg(int k, int n, int W, vector<vector<int> > sup, int nnz, class spvec_array & rsups){
@@ -2890,7 +2951,8 @@ SubstitutionResult substituteObservedValues(const mono& original,  const vector<
             // This variable has an observed value -> substitute it
             double observedValue = observedValueById[atomID];
             // Compute observed_value^exponent
-            double contribution = pow(observedValue, exponent);
+            //double contribution = pow(observedValue, exponent);
+            double contribution = observedValue; // since each relation we deal with has binary expectation
             coeffMultiplier *= contribution;
             // This variable is removed from the monomial (replaced by constant)
         } else { // unobserved case
@@ -3078,63 +3140,135 @@ void addPolynomialGround(class s3r & sr, int& i, const int& pwidth, const vector
                     newMonoList.push_back(mono);
                     continue;
                 }
-                // Collect atom IDs and save original variable indices
-                vector<int> monoAtomIDs;
-                vector<int> origVarIndices;
+
+                // Check how many copies this monomial represents
+                int numCopies = (int)round(fabs(mono.Coef[0]));
+                double sign = (mono.Coef[0] >= 0) ? 1.0 : -1.0;
+
+                if (numCopies == 1) {
+                    // Collect atom IDs and save original variable indices
+                    vector<int> monoAtomIDs;
+                    vector<int> origVarIndices;
                 
-                for (int r = 0; r < mono.supIdx.size(); r++){
-                    if (numadd >= pwidth) break;
-                    int origVarIdx = mono.supIdx[r];  // save before any modification
-                    int atomID = gndData[curidx + numadd];
-                    monoAtomIDs.push_back(atomID);
-                    origVarIndices.push_back(origVarIdx);
-                    numadd++;
-                }
-                // Apply substitution
-                SubstitutionResult result = substituteObservedValues(mono, monoAtomIDs, observedValueById);
-                
-                if (result.fullyEvaluated) {
-                    // Entire monomial became a constant - accumulate it
-                    constantContribution += result.constantValue;
-                    // Don't add to newMonoList, don't update tracking
-                } else {
-                    // Some or no variables were substituted
-                    // Build mapping: which original var corresponds to each remaining atom
-                    vector<int> remainingOrigVars;
-                    int remainingIdx = 0;
-                    
-                    for (int r = 0; r < monoAtomIDs.size(); r++) {
-                        int atomID = monoAtomIDs[r];
-                        // Check if this atom remained (wasn't substituted)
-                        if (remainingIdx < result.remainingAtomIDs.size() && 
-                            result.remainingAtomIDs[remainingIdx] == atomID) {
-                            remainingOrigVars.push_back(origVarIndices[r]);
-                            remainingIdx++;
-                        }
+                    for (int r = 0; r < mono.supIdx.size(); r++){
+                        if (numadd >= pwidth) break;
+                        int origVarIdx = mono.supIdx[r];  // save before any modification
+                        int atomID = gndData[curidx + numadd];
+                        monoAtomIDs.push_back(atomID);
+                        origVarIndices.push_back(origVarIdx);
+                        numadd++;
                     }
-                    // Update tracking for remaining variables
-                    for (int k = 0; k < result.remainingAtomIDs.size(); k++) {
-                        int atomID = result.remainingAtomIDs[k];
-                        int origVarIdx = remainingOrigVars[k];
-                        
-                        // Update bindices
-                        for (int t = 0; t < sr.bindices.size(); t++){
-                            for (auto it = sr.bindices[t].begin(); it != sr.bindices[t].end(); ++it) {
-                                if (*it == origVarIdx) {
-                                    tempBindices[t].insert(atomID);
-                                }
+                    // Apply substitution
+                    SubstitutionResult result = substituteObservedValues(mono, monoAtomIDs, observedValueById);
+                
+                    if (result.fullyEvaluated) {
+                        // Entire monomial became a constant - accumulate it
+                        constantContribution += result.constantValue;
+                        // Don't add to newMonoList, don't update tracking
+                    } else {
+                        // Some or no variables were substituted
+                        // Build mapping: which original var corresponds to each remaining atom
+                        vector<int> remainingOrigVars;
+                        int remainingIdx = 0;
+                    
+                        for (int r = 0; r < monoAtomIDs.size(); r++) {
+                            int atomID = monoAtomIDs[r];
+                            // Check if this atom remained (wasn't substituted)
+                            if (remainingIdx < result.remainingAtomIDs.size() && 
+                                result.remainingAtomIDs[remainingIdx] == atomID) {
+                                remainingOrigVars.push_back(origVarIndices[r]);
+                                remainingIdx++;
                             }
                         }
-                        // Store bounds
-                        newLo[atomID] = sr.Polysys.bounds.lbd(origVarIdx);
-                        newUp[atomID] = sr.Polysys.bounds.ubd(origVarIdx);
-                        // Track in expectMap
-                        expectMap[origVarIdx].insert(atomID);
+                        // Update tracking for remaining variables
+                        for (int k = 0; k < result.remainingAtomIDs.size(); k++) {
+                            int atomID = result.remainingAtomIDs[k];
+                            int origVarIdx = remainingOrigVars[k];
+                        
+                            // Update bindices
+                            for (int t = 0; t < sr.bindices.size(); t++){
+                                for (auto it = sr.bindices[t].begin(); it != sr.bindices[t].end(); ++it) {
+                                    if (*it == origVarIdx) {
+                                        tempBindices[t].insert(atomID);
+                                    }
+                                }
+                            }
+                            // Store bounds
+                            newLo[atomID] = sr.Polysys.bounds.lbd(origVarIdx);
+                            newUp[atomID] = sr.Polysys.bounds.ubd(origVarIdx);
+                            // Track in expectMap
+                            expectMap[origVarIdx].insert(atomID);
+                        }
+                        // Add reduced monomial to new list
+                        newMonoList.push_back(result.reducedMono);
                     }
-                    // Add reduced monomial to new list
-                    newMonoList.push_back(result.reducedMono);
+                    if (numadd >= pwidth) break;
+                } else {
+                    // Monomial represents multiple merged predicates - split them
+                    for (int copy = 0; copy < numCopies; copy++) {
+                        // Each copy gets its own set of atoms from gndData
+                        vector<int> monoAtomIDs;
+                        vector<int> origVarIndices;
+            
+                        for (int r = 0; r < mono.supIdx.size(); r++){
+                            if (numadd >= pwidth) break;
+                            int origVarIdx = mono.supIdx[r];
+                            int atomID = gndData[curidx + numadd];
+                            monoAtomIDs.push_back(atomID);
+                            origVarIndices.push_back(origVarIdx);
+                            numadd++;
+                        }
+                        // Create a single-coefficient version for substitution
+                        class mono singleMono = mono; 
+                        singleMono.Coef[0] = sign; 
+                        // Apply substitution
+                        SubstitutionResult result = substituteObservedValues(singleMono, monoAtomIDs, observedValueById);
+
+                        if (result.fullyEvaluated) {
+                            // Entire monomial became a constant - accumulate it
+                            constantContribution += result.constantValue;
+                            // Don't add to newMonoList, don't update tracking
+                        } else {
+                            // Some or no variables were substituted
+                            // Build mapping: which original var corresponds to each remaining atom
+                            vector<int> remainingOrigVars;
+                            int remainingIdx = 0;
+
+                            for (int r = 0; r < monoAtomIDs.size(); r++) {
+                                int atomID = monoAtomIDs[r];
+                                // Check if this atom remained (wasn't substituted)
+                                if (remainingIdx < result.remainingAtomIDs.size() && 
+                                    result.remainingAtomIDs[remainingIdx] == atomID) {
+                                    remainingOrigVars.push_back(origVarIndices[r]);
+                                    remainingIdx++;
+                                }
+                            }
+
+                            // Update tracking for remaining variables
+                            for (int k = 0; k < result.remainingAtomIDs.size(); k++) {
+                                int atomID = result.remainingAtomIDs[k];
+                                int origVarIdx = remainingOrigVars[k];
+
+                                // Update bindices
+                                for (int t = 0; t < sr.bindices.size(); t++){
+                                    for (auto it = sr.bindices[t].begin(); it != sr.bindices[t].end(); ++it) {
+                                        if (*it == origVarIdx) {
+                                            tempBindices[t].insert(atomID);
+                                        }
+                                    }
+                                }
+                                // Store bounds
+                                newLo[atomID] = sr.Polysys.bounds.lbd(origVarIdx);
+                                newUp[atomID] = sr.Polysys.bounds.ubd(origVarIdx);
+                                // Track in expectMap
+                                expectMap[origVarIdx].insert(atomID);
+                            }
+                            // Add reduced monomial to new list
+                            newMonoList.push_back(result.reducedMono);
+                        }
+                        if (numadd >= pwidth) break;
+                    }
                 }
-                if (numadd >= pwidth) break;
             }
             if (constantContribution != 0.0) {
                 // Find existing constant monomial and add to it
@@ -3279,7 +3413,7 @@ void conversion_part2(
     }
     cout << "------Done Printing Original Polynomials-------" << '\n' << endl;
     //cout << "What? dimVar = " << sr.Polysys.numsys() << " and numcliques = " << sr.maxcliques.numcliques << endl;
-    printBindices(sr.bindices, sr.Polysys.numsys(), sr.maxcliques.numcliques, "Initial Bind");
+    // printBindices(sr.bindices, sr.Polysys.numsys(), sr.maxcliques.numcliques, "Initial Bind");
 
     // Extra Information received from gen_pop
     int newNumVars = get<0>(fromGen); // number of variables after grouding
@@ -3420,6 +3554,8 @@ void conversion_part2(
     sr.timedata[4] = (double)clock();
 	val = getmem();
  
+    cout << "Can we get here?" << endl;
+
     // Prepare for constraint processing
     stsize = sr.Polysys.numsys() -1 ;
     //generate all supports being consisted polynomial sdp without moment matrices
@@ -3429,9 +3565,28 @@ void conversion_part2(
         polyinfo_st.resize(stsize);
         bassinfo_st.resize(stsize);
         get_subjectto_polys_and_basups(sr.Polysys, sr.bindices, BasisSupports.supsetArray, stsize, polyinfo_st, bassinfo_st);
+
+        // // DEBUG: Check polyinfo_st sizes
+        // cout << "\n=== Debugging polyinfo_st ===" << endl;
+        // cout << "stsize = " << stsize << endl;
+        // for (int i = 0; i < min(stsize, 5); i++) {
+        //     cout << "polyinfo_st[" << i << "]:" << endl;
+        //     cout << "  typeCone = " << polyinfo_st[i].typeCone << endl;
+        //     cout << "  numMs = " << polyinfo_st[i].numMs << endl;
+        //     cout << "  sup.pnz_size = " << polyinfo_st[i].sup.pnz_size << endl;
+        //     cout << "  sup.vap_size = " << polyinfo_st[i].sup.vap_size << endl;
+        //     cout << "  Corresponding poly " << (i+1) << " monoList.size() = " 
+        //         << sr.Polysys.polynomial[i+1].monoList.size() << endl;
+        //     if (polyinfo_st[i].numMs != sr.Polysys.polynomial[i+1].monoList.size()) {
+        //         cout << "  *** MISMATCH! polyinfo numMs doesn't match actual monoList size! ***" << endl;
+        //     }
+        // }
+        // cout << "========================\n" << endl;
+        // // END DEBUG
     }
     sr.timedata[5] = (double)clock();
 	val = getmem();
+    cout << "Still failing at get_allsups?" << endl;
     // Create global set of supports, i.e. exhaustive set of monomials that can be referenced anywhere
     // built by taking union of all monomials from the objective, constraints, and all basis supports
     // these are stored in allsups_st
@@ -3447,6 +3602,8 @@ void conversion_part2(
     sr.timedata[7] = (double)clock();
 	val = getmem();
     
+    cout << "So we can't get here'?" << endl;
+
     //reduce each basis supports
     if(sr.param.reduceMomentMatSW == 1){
         sr.reduceSupSets(BasisSupports, allSups);
