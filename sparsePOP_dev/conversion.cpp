@@ -1934,33 +1934,6 @@ void count_lexall_num_a_nnz(/*IN*/int dimvar, int deg, /*OUT*/int & num, int & n
 }
 void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<class poly_info> & polyinfo_st, vector<class bass_info> & bassinfo_st, class spvec_array & allsups){
 
-    cout << "Calling get_allsups" << endl;
-    
-    // DEBUG: Check all incoming data
-    cout << "\n=== get_allsups DEBUG ===" << endl;
-    cout << "dim = " << dim << ", stsize = " << stsize << endl;
-    cout << "polyinfo_obj: pnz_size=" << polyinfo_obj.sup.pnz_size 
-         << ", vap_size=" << polyinfo_obj.sup.vap_size << endl;
-    
-    for (int i = 0; i < stsize; i++) {
-        cout << "  [" << i << "] polyinfo: pnz=" << polyinfo_st[i].sup.pnz_size 
-             << ", vap=" << polyinfo_st[i].sup.vap_size
-             << " | bassinfo: pnz=" << bassinfo_st[i].sup.pnz_size
-             << ", vap=" << bassinfo_st[i].sup.vap_size
-             << ", dim=" << bassinfo_st[i].dim
-             << ", deg=" << bassinfo_st[i].deg << endl;
-        
-        // Check for suspicious values
-        if (polyinfo_st[i].sup.pnz_size < 0 || polyinfo_st[i].sup.vap_size < 0 ||
-            bassinfo_st[i].sup.pnz_size < 0 || bassinfo_st[i].sup.vap_size < 0) {
-            cout << "    *** NEGATIVE SIZE DETECTED! ***" << endl;
-        }
-        if (polyinfo_st[i].sup.pnz_size > 100000 || polyinfo_st[i].sup.vap_size > 100000) {
-            cout << "    *** UNREASONABLY LARGE SIZE! ***" << endl;
-        }
-    }
-    cout << "========================\n" << endl;
-
     allsups.dim = dim;
     if(stsize > 0){
         // first filter out all degree-0 constraints (pure constraints with no variables)
@@ -1972,7 +1945,6 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
         for(int i=0; i<stsize; i++){
             // Skip degree-0 constraints (pure constants with no variables)
             if(bassinfo_st[i].deg == 0 || bassinfo_st[i].sup.pnz_size == 0) {
-                cout << "  Skipping constraint " << i << " in get_allsups (degree=0, constant)" << endl;
                 continue;
             }
         
@@ -2109,7 +2081,6 @@ void get_allsups(int dim, class poly_info & polyinfo_obj, int stsize, vector<cla
         //get all supports of objective function
         pushsups(polyinfo_obj.sup, allsups);
     }
-    cout << "Done calling get_allsups" << endl;
 }
 
 void genLexFixDeg(int k, int n, int W, vector<vector<int> > sup, int nnz, class spvec_array & rsups){
@@ -2929,7 +2900,7 @@ SubstitutionResult substituteObservedValues(const mono& original,  const vector<
     result.constantValue = 0.0;
     
     // Initialize reduced monomial with same structure as original
-    result.reducedMono.allocSupp(original.nDim);
+    // result.reducedMono.allocSupp(original.nDim);
     result.reducedMono.allocCoef(original.Coef.size());
     
     // Start with original coefficients
@@ -3117,8 +3088,8 @@ void addPolynomialGround(class s3r & sr, int& i, const int& pwidth, const vector
                 expectMap[new_poly.beenZero[s].first].insert(gndData[curidx+numadd+1]);
                 
                 mono m1, m2;
-                m1.allocSupp(sr.Polysys.dimVar);
-                m2.allocSupp(sr.Polysys.dimVar);
+                // m1.allocSupp(sr.Polysys.dimVar);
+                // m2.allocSupp(sr.Polysys.dimVar);
                 m1.allocCoef(1);
                 m2.allocCoef(1);
                 m1.supIdx.push_back(gndData[curidx + numadd]);
@@ -3284,7 +3255,7 @@ void addPolynomialGround(class s3r & sr, int& i, const int& pwidth, const vector
                 // If no constant term exists, create one
                 if (!foundConstant) {
                     mono constantMono;
-                    constantMono.allocSupp(sr.Polysys.dimVar);
+                    // constantMono.allocSupp(sr.Polysys.dimVar);
                     constantMono.allocCoef(1);
                     constantMono.Coef[0] = constantContribution;
                     newMonoList.push_back(constantMono);
@@ -3480,9 +3451,10 @@ void conversion_part2(
             usedVarIDs.insert(varID);
         }
     }
-    int actualNumVars = usedVarIDs.size();
-    // update to new number of variables (after substitution)
-    newNumVars = actualNumVars; 
+    // int actualNumVars = usedVarIDs.size();
+    // // update to new number of variables (after substitution)
+    // newNumVars = actualNumVars; 
+    newNumVars = usedVarIDs.empty() ? 0 : (*usedVarIDs.rbegin() + 1);
 
     // After new polynomials and their variables have been added, update the other things in the system to match
     // form update Bindices
@@ -3512,7 +3484,7 @@ void conversion_part2(
         printPolynomial(poly, "resulting poly");
     }
     cout << "------Done Printing NEW Polynomials-------" << endl;
-    printBindices(sr.bindices, newNumConst, sr.maxcliques.numcliques, "New Bindices");
+    // printBindices(sr.bindices, newNumConst, sr.maxcliques.numcliques, "New Bindices");
 
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
@@ -3553,8 +3525,6 @@ void conversion_part2(
     initialize_polyinfo(sr.Polysys, 0, polyinfo_obj);
     sr.timedata[4] = (double)clock();
 	val = getmem();
- 
-    cout << "Can we get here?" << endl;
 
     // Prepare for constraint processing
     stsize = sr.Polysys.numsys() -1 ;
@@ -3565,28 +3535,9 @@ void conversion_part2(
         polyinfo_st.resize(stsize);
         bassinfo_st.resize(stsize);
         get_subjectto_polys_and_basups(sr.Polysys, sr.bindices, BasisSupports.supsetArray, stsize, polyinfo_st, bassinfo_st);
-
-        // // DEBUG: Check polyinfo_st sizes
-        // cout << "\n=== Debugging polyinfo_st ===" << endl;
-        // cout << "stsize = " << stsize << endl;
-        // for (int i = 0; i < min(stsize, 5); i++) {
-        //     cout << "polyinfo_st[" << i << "]:" << endl;
-        //     cout << "  typeCone = " << polyinfo_st[i].typeCone << endl;
-        //     cout << "  numMs = " << polyinfo_st[i].numMs << endl;
-        //     cout << "  sup.pnz_size = " << polyinfo_st[i].sup.pnz_size << endl;
-        //     cout << "  sup.vap_size = " << polyinfo_st[i].sup.vap_size << endl;
-        //     cout << "  Corresponding poly " << (i+1) << " monoList.size() = " 
-        //         << sr.Polysys.polynomial[i+1].monoList.size() << endl;
-        //     if (polyinfo_st[i].numMs != sr.Polysys.polynomial[i+1].monoList.size()) {
-        //         cout << "  *** MISMATCH! polyinfo numMs doesn't match actual monoList size! ***" << endl;
-        //     }
-        // }
-        // cout << "========================\n" << endl;
-        // // END DEBUG
     }
     sr.timedata[5] = (double)clock();
 	val = getmem();
-    cout << "Still failing at get_allsups?" << endl;
     // Create global set of supports, i.e. exhaustive set of monomials that can be referenced anywhere
     // built by taking union of all monomials from the objective, constraints, and all basis supports
     // these are stored in allsups_st
@@ -3601,8 +3552,7 @@ void conversion_part2(
     initialize_supset(allsups_st, allSups);
     sr.timedata[7] = (double)clock();
 	val = getmem();
-    
-    cout << "So we can't get here'?" << endl;
+
 
     //reduce each basis supports
     if(sr.param.reduceMomentMatSW == 1){
