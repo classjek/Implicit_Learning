@@ -3534,12 +3534,12 @@ void conversion_part2(
     fixedVar[1] = vector<double>(newNumVars, 0); // dummy value 
 
     // Update each polynomial with new variable size and print them
-    cout << '\n' << "------Printing NEW Polynomials-------" << endl;
-    for (auto& poly : sr.Polysys.polynomial) {
-        poly.setDimVar(newNumVars);
-        printPolynomial(poly, "resulting poly");
-    }
-    cout << "------Done Printing NEW Polynomials-------" << endl;
+    // cout << '\n' << "------Printing NEW Polynomials-------" << endl;
+    // for (auto& poly : sr.Polysys.polynomial) {
+    //     poly.setDimVar(newNumVars);
+    //     printPolynomial(poly, "resulting poly");
+    // }
+    // cout << "------Done Printing NEW Polynomials-------" << endl;
     // printBindices(sr.bindices, newNumConst, sr.maxcliques.numcliques, "New Bindices");
 
     // resize degOne terms, which was previously sized to match the number of original variables
