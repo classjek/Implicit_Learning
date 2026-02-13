@@ -27,7 +27,8 @@ int main() {
   // createProbLog Parser
   domain::ProbLogParser parser(groundNames); 
   // Open file and parse constraints
-  std::string filename = "../data/groundFacts.pl";
+  //   std::string filename = "../data/groundFacts.pl";
+  std::string filename = "../data/R-HSA-1483249_data.pl";
   std::vector<kb::Constraint> constraints = parser.parseFile(filename);
   cp.tick("After parsing"); 
 
@@ -39,8 +40,14 @@ int main() {
   std::vector<std::vector<std::string>> typedGroundNames;
   typedGroundNames.push_back(std::vector<std::string>(groundNames.genes.begin(), groundNames.genes.end()));
   typedGroundNames.push_back(std::vector<std::string>(groundNames.enzymes.begin(), groundNames.enzymes.end()));
-  typedGroundNames.push_back(std::vector<std::string>(groundNames.reactions.begin(), groundNames.reactions.end()));
-  typedGroundNames.push_back(std::vector<std::string>(groundNames.compounds.begin(), groundNames.compounds.end()));
+
+  std::vector<std::string> fixedGene1 = {"g100036608"}; 
+  std::vector<std::string> fixedEnzyme2 = {"ec_3_1_3_48"};
+  typedGroundNames.push_back(fixedGene1); 
+  typedGroundNames.push_back(fixedEnzyme2); 
+
+//   typedGroundNames.push_back(std::vector<std::string>(groundNames.reactions.begin(), groundNames.reactions.end()));
+//   typedGroundNames.push_back(std::vector<std::string>(groundNames.compounds.begin(), groundNames.compounds.end()));
 
   // Read in Universally Quantified Constraints
   std::ifstream in("../data/universalConstraints.txt");   
@@ -75,23 +82,77 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+10); // genes  15
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+10); // enzymes 20 
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+2); // genes 100
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+1); // enzymes 27
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds
+
+groundNamesTest[0].push_back("g100036608");
+groundNamesTest[0].push_back("g100037840");
+groundNamesTest[1].push_back("ec_3_1_3_48");
+groundNamesTest[1].push_back("ec_3_1_3_48");
+
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
+
 std::cout << std::endl;
 
 // ground universally quantified constraints
+// domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults); // for Testing
 domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
-// TODO: add in ground facts from Problog
 cp.tick("After grounding"); 
+
+// build observed values from facts
+// Build observed values from ground facts
+std::cout << "We have " << constraints.size() << " constraints" << std::endl;
+auto test_constraints = std::vector<kb::Constraint>(constraints.begin(), constraints.begin() + std::min(5, (int)constraints.size()));
+std::cout << "Called with " << test_constraints.size() << " constraints" << std::endl;
+std::cout << test_constraints[0].poly.toString() << std::endl;
+std::cout << test_constraints[1].poly.toString() << std::endl;
+std::cout << test_constraints[2].poly.toString() << std::endl;
+std::vector<double> observedValueById = domain::buildObservedValues(constraints, groundMap, groundMap.size());
+int observedCount = 0;
+
+for (double val : observedValueById) {
+    if (!std::isnan(val)){ 
+        observedCount++;
+    }
+
+}
+std::cout << "Observed " << observedCount << " atoms from ground facts" << std::endl;
+
+int test = 0; 
+for (size_t i = 0; i < observedValueById.size(); i++) {
+    auto ex = observedValueById[i];
+    if (!std::isnan(ex) && test < 5){
+        std::cout << "observedValueById[" << i << "] = " << ex << std::endl;
+        test++; 
+    }
+}
 
 std::vector<int> polyWidth; // holds the number of arguments taken by polynomial i
 std::vector<int> gndOff; // holds offset used to access the gndData for each polynomial
 std::vector<int> gndData; // every valid grounding vector, stored contiguously
 domain::createGroundingRepresentation(finalResults, polyWidth, gndOff, gndData);
 cp.tick("After Sparse Rep"); 
+
+
+std::cout << "\n=== Where is Atom 3? ===" << std::endl;
+for (int i = 0; i < polyWidth.size(); i++) {
+    if (polyWidth[i] == 0) continue;
+    int start = gndOff[i];
+    int end = gndOff[i+1];
+    for (int idx = start; idx < end; idx++) {
+        if (gndData[idx] == 3) {
+            int instance = (idx - start) / polyWidth[i];
+            int posInInstance = (idx - start) % polyWidth[i];
+            std::cout << "  Atom 3 found in constraint " << i 
+                     << ", instance " << instance 
+                     << ", position " << posInInstance << std::endl;
+        }
+    }
+}
+std::cout << "======================\n" << std::endl;
+
 
 std::cout << "Grounded Atom Map (total " << groundMap.size() << " atoms):" << std::endl;
 std::cout << "finalResults size: " << finalResults.size() << std::endl;
@@ -121,7 +182,7 @@ std::string fileName = domain::writeGMSFile(universal_constraints);
 
 /// Interfacing with SparsePOP /// 
 std::cout << "Solving with SparsePOP..." << std::endl;
-std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData);
+std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>> fromGen(newNumVars, newNumConst, polyWidth, gndOff, gndData, observedValueById);
 
 cp.tick("Before SparsePOP Solve");
 solveWithSparsePOP(fileName, fromGen, cp);

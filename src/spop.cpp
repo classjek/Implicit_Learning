@@ -15,11 +15,11 @@
 #include <iostream>
 #include <fstream>
 
-extern void makeSDPr(s3r& POP, mysdp& sdpdata, Info& info, std::string& pname, std::vector<std::vector<double>>& fixedVar, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>>& fromGen);
+extern void makeSDPr(s3r& POP, mysdp& sdpdata, Info& info, std::string& pname, std::vector<std::vector<double>>& fixedVar, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>>& fromGen);
 extern void MakeSDPAform(mysdp& sdpdata, SDPA& Problem);
 extern void write_sdpa(mysdp& psdp, std::string sdpafile, bool NegBlocks);
 
-void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>>& fromGen, metrics::Checkpoint& cp) {
+void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>>& fromGen, metrics::Checkpoint& cp) {
     // Create SparsePOP objects
     s3r POP;
     mysdp sdpdata;

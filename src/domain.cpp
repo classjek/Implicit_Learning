@@ -458,16 +458,6 @@ Constraint parseConstraint(const std::string &text) {
 
 #pragma region Grounding
 
-// void groundConstraint(const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<Sym,int>& groundMap, std::vector<std::vector<std::vector<int>>>& resultVec) {
-//     // placeholder implementation
-//     //std::cout << "Called groundConstraint with grounding size: " << grounding.size() << std::endl;
-//     for (const auto& [symType, name] : grounding) {
-//         // std::cout << static_cast<int>(symType) << ": " << name << ", ";
-//         std::cout << name << ", ";
-//     }
-//     std::cout << std::endl;
-//     // Actual implementation would map the grounding to indices and store in resultVec
-// }
 void groundConstraint(const kb::Constraint& constraint, const std::vector<std::pair<SymbolType, std::string>>& orderedTypedInputs, 
      const std::vector<std::pair<SymbolType, std::string>>& grounding, std::unordered_map<size_t, int>& groundMap, std::vector<std::vector<int>>& constraintGroundings) {
 
@@ -572,6 +562,44 @@ void createGroundingRepresentation(const std::vector<std::vector<std::vector<int
         }
     }
     gndOff.push_back(static_cast<int>(gndData.size()));
+}
+
+std::vector<double> buildObservedValues(const std::vector<kb::Constraint>& facts, const std::unordered_map<size_t, int>& groundMap, int numVars) {
+    // Initialize all to NaN to represent unobserved
+    std::vector<double> observedById(numVars, std::numeric_limits<double>::quiet_NaN());
+    
+    for (const auto& fact : facts) {
+        std::string atomStr;
+        double prob = 0.0;
+        
+        // Extract atom and probability from the two terms
+        for (const auto& [monoPtr, coeff] : fact.poly.terms) {
+            if (monoPtr->isZero()) {
+                prob = - coeff;
+            } else {
+                // This is the atom term - build its string
+                for (const auto& [atomPtr, exponent] : monoPtr->items) {
+                    atomStr = atomPtr->rel + "(";
+                    for (size_t i = 0; i < atomPtr->args.size(); i++) {
+                        atomStr += atomPtr->args[i];
+                        if (i < atomPtr->args.size() - 1) atomStr += ",";
+                    }
+                    atomStr += ")";
+                }
+            }
+        }
+        // Look up atom in groundMap to get its ID
+        if (!atomStr.empty()) {
+            // std::cout << "AtomStr: " << atomStr << std::endl;
+            size_t hashValue = std::hash<std::string>{}(atomStr);
+            auto it = groundMap.find(hashValue);
+            if (it != groundMap.end()) {
+                int atomID = it->second;
+                observedById[atomID] = prob;
+            }
+        }
+    }
+    return observedById;
 }
 
 std::map<std::string, std::string> relVarMap(const std::vector<kb::Constraint>& constraints){

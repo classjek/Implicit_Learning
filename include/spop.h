@@ -8,6 +8,6 @@
 #include "metrics.h"
 
 // Simple wrapper to call SparsePOP
-void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>>& fromGen, metrics::Checkpoint& cp);
+void solveWithSparsePOP(std::string& gmsFilePath, std::tuple<int,int, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<double>>& fromGen, metrics::Checkpoint& cp);
 
 #endif

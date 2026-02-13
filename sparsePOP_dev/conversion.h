@@ -42,7 +42,7 @@ void conversion_part2(
         /*IN*/  class s3r & sr,
         vector<vector<double>>& fixedVar,
         vector<set<int>>& expectMap,
-        tuple<int,int, vector<int>, vector<int>, vector<int>>& fromGen,
+        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>>& fromGen,
         vector<int> & oriidx,
         class SparseMat & extofcsp,
         /*OUT*/ class mysdp & sdpdata);

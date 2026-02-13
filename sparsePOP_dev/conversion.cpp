@@ -2847,6 +2847,75 @@ vector<list<int>> createNewBind(const vector<set<int>>& tempBindices, const vect
     return bindices; 
 }
 
+
+/**
+ * Result of substituting observed values into a monomial
+ */
+struct SubstitutionResult {
+    bool fullyEvaluated; // true if all variables were substituted and monomial becomes constant
+    double constantValue; // if fullyEvaluated, the evaluated constant value
+    mono reducedMono; // if not fullyEvaluated, the monomial with observed vars removed
+    vector<int> remainingAtomIDs; // atom IDs for variables that are not observed
+};
+
+// Substitute observed values into a monomial
+// example: given monomial 3*x^2*y and substitutions x=0.5, y=unobserved:
+//     computes 3 * (0.5)^2 * y = 0.75 * y
+//     returns reducedMono representing "0.75 * y"
+SubstitutionResult substituteObservedValues(const mono& original,  const vector<int>& atomIDs, const vector<double>& observedValueById) {
+    SubstitutionResult result;
+    result.fullyEvaluated = false;
+    result.constantValue = 0.0;
+    
+    // Initialize reduced monomial with same structure as original
+    result.reducedMono.allocSupp(original.nDim);
+    result.reducedMono.allocCoef(original.Coef.size());
+    
+    // Start with original coefficients
+    for (int i = 0; i < original.Coef.size(); i++) {
+        result.reducedMono.Coef[i] = original.Coef[i];
+    }
+    if (atomIDs.size() != original.supIdx.size()) { // check input validity
+        cerr << "ERROR: atomIDs size doesn't match monomial variables" << endl;
+        return result;
+    }
+    double coeffMultiplier = 1.0;
+    
+    // for each variable in monomial
+    for (int r = 0; r < original.supIdx.size(); r++) {
+        int atomID = atomIDs[r];
+        int exponent = original.supVal[r];
+        // Check if this atom has an observed value
+        if (atomID < observedValueById.size() && !std::isnan(observedValueById[atomID])) { // substitution case
+            // This variable has an observed value -> substitute it
+            double observedValue = observedValueById[atomID];
+            // Compute observed_value^exponent
+            double contribution = pow(observedValue, exponent);
+            coeffMultiplier *= contribution;
+            // This variable is removed from the monomial (replaced by constant)
+        } else { // unobserved case
+            // keep variable in monomial
+            result.reducedMono.supIdx.push_back(atomID);
+            result.reducedMono.supVal.push_back(exponent);
+            result.remainingAtomIDs.push_back(atomID);
+        }
+    }
+    // Check if all variables were substituted
+    if (result.reducedMono.supIdx.empty()) {
+        result.fullyEvaluated = true;
+        // Multiply original coefficient by all the substituted values
+        // Note: Using Coef[0] assuming scalar constraint. Vector constraints would need special handling.
+        result.constantValue = result.reducedMono.Coef[0] * coeffMultiplier;
+    } else { 
+        for (int i = 0; i < result.reducedMono.Coef.size(); i++) {
+            result.reducedMono.Coef[i] *= coeffMultiplier;
+        }
+    }
+    
+    return result;
+}
+
+
 // Function that will take in the index of a polynomial and then add it 
 // TODO: maybe we don't even need to pass seenVariables. Think about it
 // myBindices is our version of bindices that will be populated wrt the new constraints and variables we add
@@ -2945,15 +3014,200 @@ void addPolynomial(class s3r & sr, int& i, const int& pwidth, const vector<int>&
             bindToNew[i].push_back(sr.Polysys.polynomial.size());
             sr.Polysys.polynomial.push_back(new_poly);
         }
-        //printPolynomial(new_poly, "Poly " + to_string(i) +"." + to_string(j+1)); // print new poly
+        // printPolynomial(new_poly, "Poly " + to_string(i) +"." + to_string(j+1)); // print new poly
     }
 }
+
+
+void addPolynomialGround(class s3r & sr, int& i, const int& pwidth, const vector<int>& gndOff, 
+                    const vector<int>& gndData, vector<set<int>>& tempBindices, 
+                    vector<double>& newLo, vector<double>& newUp, vector<vector<int>>& bindToNew,
+                    vector<set<int>>& expectMap, const vector<double>& observedValueById){
+    if ((gndOff[i+1] - gndOff[i]) % pwidth != 0) {
+        cout << " ## Error: polynomial fed incorrect number of arguments from map" << endl;
+        exit(EXIT_FAILURE);
+    } 
+    int numnew = (gndOff[i+1] - gndOff[i]) / pwidth;
+    cout << "   [GROUND] constraint " << i << " becomes " << numnew << " constraints." << endl;
+    
+    for (int j = 0; j < numnew; j++){
+        class poly new_poly = sr.Polysys.polynomial[i]; 
+        int curidx = gndOff[i] + pwidth * j; 
+        int numadd = 0;
+        double constantContribution = 0.0;  // Accumulate constants from fully evaluated monomials
+
+        if (new_poly.monoList.empty()){
+            // Handle beenZero case (same as original - no substitution needed here)
+            for (int s = 0; s < new_poly.beenZero.size(); s++){
+                for (int t = 0; t < sr.bindices.size(); t++){
+                    for (auto it = sr.bindices[t].begin(); it != sr.bindices[t].end(); ++it) {
+                        if (*it == new_poly.beenZero[s].first) {
+                            tempBindices[t].insert(gndData[curidx + numadd]);
+                            tempBindices[t].insert(gndData[curidx + numadd + 1]);
+                        }
+                    }
+                }
+                newLo[gndData[curidx + numadd]] = sr.Polysys.bounds.lbd(new_poly.beenZero[s].first);
+                newUp[gndData[curidx + numadd]] = sr.Polysys.bounds.ubd(new_poly.beenZero[s].first);
+                newLo[gndData[curidx + numadd+1]] = sr.Polysys.bounds.lbd(new_poly.beenZero[s].first);
+                newUp[gndData[curidx + numadd+1]] = sr.Polysys.bounds.ubd(new_poly.beenZero[s].first);
+                expectMap[new_poly.beenZero[s].first].insert(gndData[curidx+numadd]);
+                expectMap[new_poly.beenZero[s].first].insert(gndData[curidx+numadd+1]);
+                
+                mono m1, m2;
+                m1.allocSupp(sr.Polysys.dimVar);
+                m2.allocSupp(sr.Polysys.dimVar);
+                m1.allocCoef(1);
+                m2.allocCoef(1);
+                m1.supIdx.push_back(gndData[curidx + numadd]);
+                m1.supVal.push_back(new_poly.beenZero[s].second);
+                m1.Coef[s] = 1;
+                m2.supIdx.push_back(gndData[curidx + numadd + 1]);
+                m2.supVal.push_back(new_poly.beenZero[s].second);
+                m2.Coef[s] = -1;
+                new_poly.addMono(m1);
+                new_poly.addMono(m2);
+                numadd += 2;
+            }
+        } else {
+            // Main case: iterate through monomials and handle substitution
+            vector<mono> newMonoList;  // Build new monomial list
+            for (auto& mono : new_poly.monoList){
+                // Skip constant monomials
+                if (mono.supIdx.empty()) {
+                    newMonoList.push_back(mono);
+                    continue;
+                }
+                // Collect atom IDs and save original variable indices
+                vector<int> monoAtomIDs;
+                vector<int> origVarIndices;
+                
+                for (int r = 0; r < mono.supIdx.size(); r++){
+                    if (numadd >= pwidth) break;
+                    int origVarIdx = mono.supIdx[r];  // save before any modification
+                    int atomID = gndData[curidx + numadd];
+                    monoAtomIDs.push_back(atomID);
+                    origVarIndices.push_back(origVarIdx);
+                    numadd++;
+                }
+                // Apply substitution
+                SubstitutionResult result = substituteObservedValues(mono, monoAtomIDs, observedValueById);
+                
+                if (result.fullyEvaluated) {
+                    // Entire monomial became a constant - accumulate it
+                    constantContribution += result.constantValue;
+                    // Don't add to newMonoList, don't update tracking
+                } else {
+                    // Some or no variables were substituted
+                    // Build mapping: which original var corresponds to each remaining atom
+                    vector<int> remainingOrigVars;
+                    int remainingIdx = 0;
+                    
+                    for (int r = 0; r < monoAtomIDs.size(); r++) {
+                        int atomID = monoAtomIDs[r];
+                        // Check if this atom remained (wasn't substituted)
+                        if (remainingIdx < result.remainingAtomIDs.size() && 
+                            result.remainingAtomIDs[remainingIdx] == atomID) {
+                            remainingOrigVars.push_back(origVarIndices[r]);
+                            remainingIdx++;
+                        }
+                    }
+                    // Update tracking for remaining variables
+                    for (int k = 0; k < result.remainingAtomIDs.size(); k++) {
+                        int atomID = result.remainingAtomIDs[k];
+                        int origVarIdx = remainingOrigVars[k];
+                        
+                        // Update bindices
+                        for (int t = 0; t < sr.bindices.size(); t++){
+                            for (auto it = sr.bindices[t].begin(); it != sr.bindices[t].end(); ++it) {
+                                if (*it == origVarIdx) {
+                                    tempBindices[t].insert(atomID);
+                                }
+                            }
+                        }
+                        // Store bounds
+                        newLo[atomID] = sr.Polysys.bounds.lbd(origVarIdx);
+                        newUp[atomID] = sr.Polysys.bounds.ubd(origVarIdx);
+                        // Track in expectMap
+                        expectMap[origVarIdx].insert(atomID);
+                    }
+                    // Add reduced monomial to new list
+                    newMonoList.push_back(result.reducedMono);
+                }
+                if (numadd >= pwidth) break;
+            }
+            if (constantContribution != 0.0) {
+                // Find existing constant monomial and add to it
+                bool foundConstant = false;
+                for (auto& m : newMonoList) {
+                    if (m.supIdx.empty()) {
+                        // This is a constant term - update it
+                        m.Coef[0] += constantContribution;
+                        foundConstant = true;
+                        break;
+                    }
+                }
+                // If no constant term exists, create one
+                if (!foundConstant) {
+                    mono constantMono;
+                    constantMono.allocSupp(sr.Polysys.dimVar);
+                    constantMono.allocCoef(1);
+                    constantMono.Coef[0] = constantContribution;
+                    newMonoList.push_back(constantMono);
+                }
+            }
+
+            vector<mono> cleanedMonoList;
+            for (auto& m : newMonoList) {
+                bool hasNonZeroCoef = false;
+                for (int c = 0; c < m.Coef.size(); c++) {
+                    if (fabs(m.Coef[c]) > 1e-12) {
+                        hasNonZeroCoef = true;
+                        break;
+                    }
+                }
+                if (hasNonZeroCoef) {
+                    cleanedMonoList.push_back(m);
+                }
+            }
+            
+            // Replace monomial list with new one
+            new_poly.monoList.clear();
+            for (auto& m : cleanedMonoList) {
+                new_poly.monoList.push_back(m);
+            }
+            // update noTerms to match the new monoList size
+            new_poly.noTerms = cleanedMonoList.size();
+            // recalculate degree
+            new_poly.degree = 0;
+            for (auto& m : cleanedMonoList) {
+                int monoDegree = 0;
+                for (int exp : m.supVal) {
+                    monoDegree += exp;
+                }
+                if (monoDegree > new_poly.degree) {
+                    new_poly.degree = monoDegree;
+                }
+            }
+        }
+        // Add new polynomial to polynomial list
+        if (j == numnew - 1) {
+            bindToNew[i].push_back(i);
+            sr.Polysys.polynomial[i] = new_poly;
+        } else {
+            bindToNew[i].push_back(sr.Polysys.polynomial.size());
+            sr.Polysys.polynomial.push_back(new_poly);
+        }
+        // printPolynomial(new_poly, "Poly " + to_string(i) +"." + to_string(j+1)); // print new poly
+    }
+}
+
 
 void conversion_part2(
         /*IN*/  class s3r & sr,
         vector<vector<double>>& fixedVar,
         vector<set<int>>& expectMap,
-        tuple<int,int, vector<int>, vector<int>, vector<int>>& fromGen,
+        tuple<int,int, vector<int>, vector<int>, vector<int>, vector<double>>& fromGen,
         vector<int> & oriidx,
         class SparseMat & extofcsp,
         /*OUT*/ class mysdp & sdpdata) {
@@ -3033,6 +3287,27 @@ void conversion_part2(
     vector<int> polyWidth = get<2>(fromGen); // holds the number of arguments taken by polynomial i
     vector<int> gndOff = get<3>(fromGen); // holds offset used to access the gndData for each polynomial
     vector<int> gndData = get<4>(fromGen); // every valid grounding vector, stored contiguously
+    vector<double> observedValueById = get<5>(fromGen); 
+
+
+    // DEBUG: Check what we received
+    int numObserved = 0;
+    for (double val : observedValueById) {
+        if (!std::isnan(val)) numObserved++;
+    }
+    cout << "\n=== Starting Substitution ===" << endl;
+    cout << "Total atoms: " << observedValueById.size() << endl;
+    cout << "Observed atoms: " << numObserved << " (" << (100.0 * numObserved / observedValueById.size()) << "%)" << endl;
+    cout << "First few observed values:" << endl;
+    int stop = 0; 
+    for (int i = 0; i < (int)observedValueById.size(); i++) {
+        if (!std::isnan(observedValueById[i]) && stop < 15) {
+            cout << "  Atom " << i << " = " << observedValueById[i] << endl;
+            stop++; 
+        }
+    }
+    cout << "==========================\n" << endl;
+    // END DEBUG
 
     // std::cout << "Grounding resulted in a system with " << newNumVars << " variables and " << newNumConst << " constriants. Data is below:" << std::endl;
     // std::cout << "  polyWidth = {"; 
@@ -3060,12 +3335,25 @@ void conversion_part2(
             continue; 
         }
         //std::cout << " Calling addPolynomial for polynomial " << i << std::endl;
-        addPolynomial(sr, i, pwidth, gndOff, gndData, tempBindices, newLo, newUp, bindToNew, expectMap);
+        // addPolynomial(sr, i, pwidth, gndOff, gndData, tempBindices, newLo, newUp, bindToNew, expectMap);
+        addPolynomialGround(sr, i, pwidth, gndOff, gndData, tempBindices, newLo, newUp, bindToNew, expectMap, observedValueById);
     }
+
+    // Recompute actual number of variables after substitution
+    set<int> usedVarIDs;
+    for (const auto& bindSet : tempBindices) {
+        for (int varID : bindSet) {
+            usedVarIDs.insert(varID);
+        }
+    }
+    int actualNumVars = usedVarIDs.size();
+    // update to new number of variables (after substitution)
+    newNumVars = actualNumVars; 
 
     // After new polynomials and their variables have been added, update the other things in the system to match
     // form update Bindices
     vector<list<int>> newBindices = createNewBind(tempBindices, bindToNew, newNumConst, sr.maxcliques.numcliques);
+
     sr.bindices = newBindices; 
 
     sr.Polysys.dimVar = newNumVars; // update number of variables in the system
@@ -3084,12 +3372,14 @@ void conversion_part2(
     fixedVar[1] = vector<double>(newNumVars, 0); // dummy value 
 
     // Update each polynomial with new variable size and print them
-    // cout << '\n' << "------Printing NEW Polynomials-------" << endl;
-    // for (auto& poly : sr.Polysys.polynomial) {
-    //     poly.setDimVar(newNumVars);
-    //     printPolynomial(poly, "resulting poly");
-    // }
-    // cout << "------Done Printing NEW Polynomials-------" << endl;
+    cout << '\n' << "------Printing NEW Polynomials-------" << endl;
+    for (auto& poly : sr.Polysys.polynomial) {
+        poly.setDimVar(newNumVars);
+        printPolynomial(poly, "resulting poly");
+    }
+    cout << "------Done Printing NEW Polynomials-------" << endl;
+    printBindices(sr.bindices, newNumConst, sr.maxcliques.numcliques, "New Bindices");
+
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
 
@@ -3358,7 +3648,7 @@ void conversion_part2(
     // Streaming writes SDP directly to file with simplifications applied
     std::string outputFile = "../data/sparsepop_output.dat-s";
     std::cout << "\nWriting SDP to: " << outputFile << std::endl;
-    stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
+    // stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
     std::cout << "SDP file written successfully!" << std::endl;
     
     sr.timedata[19] = (double)clock();
