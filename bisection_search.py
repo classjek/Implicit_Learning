@@ -23,7 +23,7 @@ TOLERANCE = 0.01
 MAX_ITERATIONS = 20
 
 # Path to executable
-EXECUTABLE_PATH = './build/implicit_learning'
+EXECUTABLE_PATH = './implicit_learning'
 
 #############################################
 
@@ -69,7 +69,7 @@ class BisectionSearch:
         print(f"  Running: {' '.join(cmd)}")
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd='build')
             if result.returncode != 0:
                 print(f"  ERROR: C++ program failed with exit code {result.returncode}")
                 print(f"  stderr: {result.stderr}")
