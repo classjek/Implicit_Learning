@@ -3798,9 +3798,9 @@ void conversion_part2(
     val = getmem();
     
     // Streaming writes SDP directly to file with simplifications applied
-    std::string outputFile = "../data/sparsepop_output.dat-s";
+    std::string outputFile = "../data/sparsepop_output_test.dat-s";
     std::cout << "\nWriting SDP to: " << outputFile << std::endl;
-    // stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
+    stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
     std::cout << "SDP file written successfully!" << std::endl;
     
     sr.timedata[19] = (double)clock();

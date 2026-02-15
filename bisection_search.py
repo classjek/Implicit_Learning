@@ -69,7 +69,7 @@ class BisectionSearch:
         print(f"  Running: {' '.join(cmd)}")
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd='build')
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd='build')
             if result.returncode != 0:
                 print(f"  ERROR: C++ program failed with exit code {result.returncode}")
                 print(f"  stderr: {result.stderr}")
@@ -82,10 +82,65 @@ class BisectionSearch:
             print(f"  ERROR: Failed to run C++ program: {e}")
             return False
     
-    def check_feasibility(self):
-        # STUB: Will be replaced with actual solver call
-        print("  [STUB] Checking feasibility... (always returning True for now)")
-        return True
+    # Todo
+    def check_feasibility(self, culorads_timeout=3600):
+        output_file = Path('./data/sparsepop_output_test.dat-s')
+
+        if not output_file.exists():
+            print(f"  Output file not found: {output_file}")
+            return False
+    
+        file_size = output_file.stat().st_size
+        print(f"  Found output file: {output_file} ({file_size} bytes)")
+    
+        # Run cuLoRADS
+        culorads_cmd = [
+            './bin/cuLoRADS',
+            '--filePath', str(output_file.absolute()),
+            '--timeSecLimit', str(culorads_timeout)
+        ]
+        print(f"  Running cuLoRADS (timeout: {culorads_timeout}s)...")
+    
+        try:
+            result = subprocess.run(
+                culorads_cmd,
+                capture_output=True,
+                text=True,
+                timeout=culorads_timeout + 10
+            )
+
+            # Check if cuLoRADS succeeded
+            if result.returncode != 0:
+                print(f"cuLoRADS failed with exit code {result.returncode}")
+                print(f"  stderr: {result.stderr[:200]}")  # First 200 chars
+                output_file.unlink()
+                return False
+
+            # Parse output to determine feasibility
+            output = result.stdout
+
+            # Look for the success marker
+            if "Problem Solved" in output:
+                print(f"cuLoRADS solved successfully - FEASIBLE")
+                is_feasible = True
+            else:
+                print(f"cuLoRADS did not solve - INFEASIBLE")
+                is_feasible = False
+
+            # Cleanup
+            output_file.unlink()
+            print(f"Deleted output file")
+        
+            return is_feasible
+        
+        except subprocess.TimeoutExpired:
+            print(f"cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
+            output_file.unlink()
+            return False
+        except Exception as e:
+            print(f"  Error running cuLoRADS: {e}")
+            output_file.unlink()
+            return False
     
     def search(self):
 
@@ -158,7 +213,7 @@ class BisectionSearch:
 def main():
     
     print("="*60)
-    print("CONFIGURATION (edit at top of script)")
+    print("CONFIGURATION")
     print("="*60)
     print(f"Fixed Gene:     {FIXED_GENE}")
     print(f"Fixed Enzyme:   {FIXED_ENZYME}")
