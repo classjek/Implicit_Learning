@@ -15,17 +15,25 @@ DATA_FILE = "R-HSA-1483249_data.pl"
 # Relation to find bounds for
 RELATION_NAME = "function(g100036608,ec_3_4_21)"
 
+LOG_FILE = "bisection_search" + RELATION_NAME + ".log";
+
 # Bisection search parameters
 BOUND_TYPE = 'upper'  # 'upper' or 'lower'
 INITIAL_LOWER = 0.0
 INITIAL_UPPER = 1.0
 TOLERANCE = 0.01
-MAX_ITERATIONS = 20
+MAX_ITERATIONS = 100
 
 # Path to executable
 EXECUTABLE_PATH = './implicit_learning'
 
 #############################################
+
+def log_print(message="", end="\n"):
+    """Print to both console and log file."""
+    print(message, end=end)
+    with open(LOG_FILE, 'a') as f:
+        f.write(message + end)
 
 
 class BisectionSearch:
@@ -66,20 +74,20 @@ class BisectionSearch:
             '--fileName', self.data_file
         ]
         
-        print(f"  Running: {' '.join(cmd)}")
+        log_print(f"  Running: {' '.join(cmd)}")
         
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd='build')
             if result.returncode != 0:
-                print(f"  ERROR: C++ program failed with exit code {result.returncode}")
-                print(f"  stderr: {result.stderr}")
+                log_print(f"  ERROR: C++ program failed with exit code {result.returncode}")
+                log_print(f"  stderr: {result.stderr}")
                 return False
             return True
         except subprocess.TimeoutExpired:
-            print(f"  ERROR: C++ program timed out after 1800 seconds")
+            log_print(f"  ERROR: C++ program timed out after 1800 seconds")
             return False
         except Exception as e:
-            print(f"  ERROR: Failed to run C++ program: {e}")
+            log_print(f"  ERROR: Failed to run C++ program: {e}")
             return False
     
     # Todo
@@ -87,11 +95,11 @@ class BisectionSearch:
         output_file = Path('./data/sparsepop_output_test.dat-s')
 
         if not output_file.exists():
-            print(f"  Output file not found: {output_file}")
+            log_print(f"  Output file not found: {output_file}")
             return False
     
         file_size = output_file.stat().st_size
-        print(f"  Found output file: {output_file} ({file_size} bytes)")
+        log_print(f"  Found output file: {output_file} ({file_size} bytes)")
     
         # Run cuLoRADS
         culorads_cmd = [
@@ -99,7 +107,7 @@ class BisectionSearch:
             '--filePath', str(output_file.absolute()),
             '--timeSecLimit', str(culorads_timeout)
         ]
-        print(f"  Running cuLoRADS (timeout: {culorads_timeout}s)...")
+        log_print(f"  Running cuLoRADS (timeout: {culorads_timeout}s)...")
     
         try:
             result = subprocess.run(
@@ -111,8 +119,8 @@ class BisectionSearch:
 
             # Check if cuLoRADS succeeded
             if result.returncode != 0:
-                print(f"cuLoRADS failed with exit code {result.returncode}")
-                print(f"  stderr: {result.stderr[:200]}")  # First 200 chars
+                log_print(f"cuLoRADS failed with exit code {result.returncode}")
+                log_print(f"  stderr: {result.stderr[:200]}")  # First 200 chars
                 output_file.unlink()
                 return False
 
@@ -121,40 +129,40 @@ class BisectionSearch:
 
             # Look for the success marker
             if "Problem Solved" in output:
-                print(f"cuLoRADS solved successfully - FEASIBLE")
+                log_print(f"cuLoRADS solved successfully - FEASIBLE")
                 is_feasible = True
             else:
-                print(f"cuLoRADS did not solve - INFEASIBLE")
+                log_print(f"cuLoRADS did not solve - INFEASIBLE")
                 is_feasible = False
 
             # Cleanup
             output_file.unlink()
-            print(f"Deleted output file")
+            log_print(f"Deleted output file")
         
             return is_feasible
         
         except subprocess.TimeoutExpired:
-            print(f"cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
+            log_print(f"cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
             output_file.unlink()
             return False
         except Exception as e:
-            print(f"  Error running cuLoRADS: {e}")
+            log_print(f"  Error running cuLoRADS: {e}")
             output_file.unlink()
             return False
     
     def search(self):
 
-        print(f"\n{'='*60}")
-        print(f"Starting Bisection Search")
-        print(f"{'='*60}")
-        print(f"Relation: {self.relation_name}")
-        print(f"Bound Type: {self.bound_type}")
-        print(f"Initial Range: [{self.lower}, {self.upper}]")
-        print(f"Tolerance: {self.tolerance}")
-        print(f"Fixed Gene: {self.fixed_gene}")
-        print(f"Fixed Enzyme: {self.fixed_enzyme}")
-        print(f"Data File: {self.data_file}")
-        print(f"{'='*60}\n")
+        log_print(f"\n{'='*60}")
+        log_print(f"Starting Bisection Search")
+        log_print(f"{'='*60}")
+        log_print(f"Relation: {self.relation_name}")
+        log_print(f"Bound Type: {self.bound_type}")
+        log_print(f"Initial Range: [{self.lower}, {self.upper}]")
+        log_print(f"Tolerance: {self.tolerance}")
+        log_print(f"Fixed Gene: {self.fixed_gene}")
+        log_print(f"Fixed Enzyme: {self.fixed_enzyme}")
+        log_print(f"Data File: {self.data_file}")
+        log_print(f"{'='*60}\n")
         
         iteration = 0
         
@@ -162,13 +170,13 @@ class BisectionSearch:
             iteration += 1
             mid = (self.lower + self.upper) / 2.0
             
-            print(f"Iteration {iteration}/{self.max_iterations}:")
-            print(f"  Current range: [{self.lower:.6f}, {self.upper:.6f}]")
-            print(f"  Testing midpoint: {mid:.6f}")
+            log_print(f"Iteration {iteration}/{self.max_iterations}:")
+            log_print(f"  Current range: [{self.lower:.6f}, {self.upper:.6f}]")
+            log_print(f"  Testing midpoint: {mid:.6f}")
             
             # Run C++ program with current bound
             if not self.run_cpp_program(mid):
-                print(f"  C++ program failed, aborting search")
+                log_print(f"  C++ program failed, aborting search")
                 return None
             
             # Check if solution is feasible
@@ -179,51 +187,51 @@ class BisectionSearch:
                 if is_feasible:
                     # Can tighten upper bound
                     self.upper = mid
-                    print(f"  ✓ Feasible - tightening upper bound to {mid:.6f}")
+                    log_print(f"  ✓ Feasible - tightening upper bound to {mid:.6f}")
                 else:
                     # Need to relax upper bound
                     self.lower = mid
-                    print(f"  ✗ Infeasible - relaxing upper bound, new lower={mid:.6f}")
+                    log_print(f"  ✗ Infeasible - relaxing upper bound, new lower={mid:.6f}")
             else:  # lower bound
                 if is_feasible:
                     # Can tighten lower bound
                     self.lower = mid
-                    print(f"  ✓ Feasible - tightening lower bound to {mid:.6f}")
+                    log_print(f"  ✓ Feasible - tightening lower bound to {mid:.6f}")
                 else:
                     # Need to relax lower bound
                     self.upper = mid
-                    print(f"  ✗ Infeasible - relaxing lower bound, new upper={mid:.6f}")
+                    log_print(f"  ✗ Infeasible - relaxing lower bound, new upper={mid:.6f}")
             
-            print()
+            log_print()
         
         # Return final bound
         final_bound = self.upper if self.bound_type == 'upper' else self.lower
         
-        print(f"{'='*60}")
-        print(f"Search Complete!")
-        print(f"{'='*60}")
-        print(f"Final {self.bound_type} bound: {final_bound:.6f}")
-        print(f"Iterations: {iteration}")
-        print(f"Final range: [{self.lower:.6f}, {self.upper:.6f}]")
-        print(f"{'='*60}\n")
+        log_print(f"{'='*60}")
+        log_print(f"Search Complete!")
+        log_print(f"{'='*60}")
+        log_print(f"Final {self.bound_type} bound: {final_bound:.6f}")
+        log_print(f"Iterations: {iteration}")
+        log_print(f"Final range: [{self.lower:.6f}, {self.upper:.6f}]")
+        log_print(f"{'='*60}\n")
         
         return final_bound
 
 
 def main():
     
-    print("="*60)
-    print("CONFIGURATION")
-    print("="*60)
-    print(f"Fixed Gene:     {FIXED_GENE}")
-    print(f"Fixed Enzyme:   {FIXED_ENZYME}")
-    print(f"Data File:      {DATA_FILE}")
-    print(f"Relation:       {RELATION_NAME}")
-    print(f"Bound Type:     {BOUND_TYPE}")
-    print(f"Initial Range:  [{INITIAL_LOWER}, {INITIAL_UPPER}]")
-    print(f"Tolerance:      {TOLERANCE}")
-    print(f"Max Iterations: {MAX_ITERATIONS}")
-    print("="*60)
+    log_print("="*60)
+    log_print("CONFIGURATION")
+    log_print("="*60)
+    log_print(f"Fixed Gene:     {FIXED_GENE}")
+    log_print(f"Fixed Enzyme:   {FIXED_ENZYME}")
+    log_print(f"Data File:      {DATA_FILE}")
+    log_print(f"Relation:       {RELATION_NAME}")
+    log_print(f"Bound Type:     {BOUND_TYPE}")
+    log_print(f"Initial Range:  [{INITIAL_LOWER}, {INITIAL_UPPER}]")
+    log_print(f"Tolerance:      {TOLERANCE}")
+    log_print(f"Max Iterations: {MAX_ITERATIONS}")
+    log_print("="*60)
     
     # Create and run search
     search = BisectionSearch(
