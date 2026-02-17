@@ -20,6 +20,7 @@ void initializePredicateSignatures() { // custom to our domain
     PREDICATE_SIGNATURES["reaction"] = {SymbolType::REACTION, SymbolType::COMPOUND, SymbolType::REACTION}; 
     PREDICATE_SIGNATURES["enzyme_reaction_path"] = {SymbolType::GENE, SymbolType::ENZYME, SymbolType::REACTION, SymbolType::REACTION, SymbolType::ENZYME, SymbolType::GENE};
     PREDICATE_SIGNATURES["ortholog_support"] = {SymbolType::GENE, SymbolType::GENE, SymbolType::ENZYME}; 
+    PREDICATE_SIGNATURES["enzyme_pair"] = {SymbolType::ENZYME, SymbolType::ENZYME};
 }
 
 #pragma region ProbLogParser
@@ -596,6 +597,7 @@ std::vector<double> buildObservedValues(const std::vector<kb::Constraint>& facts
             if (it != groundMap.end()) {
                 int atomID = it->second;
                 observedById[atomID] = prob;
+                std::cout << "  [OBSERVED] " << atomStr << " = " << prob << " (atomID=" << atomID << ")" << std::endl;
             }
         }
     }

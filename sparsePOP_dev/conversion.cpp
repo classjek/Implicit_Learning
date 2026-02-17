@@ -3405,22 +3405,22 @@ void conversion_part2(
     vector<domain::BoundConstraint> bounds = get<6>(fromGen); 
 
     // DEBUG: Check what we received
-    int numObserved = 0;
-    for (double val : observedValueById) {
-        if (!std::isnan(val)) numObserved++;
-    }
-    cout << "\n=== Starting Substitution ===" << endl;
-    cout << "Total atoms: " << observedValueById.size() << endl;
-    cout << "Observed atoms: " << numObserved << " (" << (100.0 * numObserved / observedValueById.size()) << "%)" << endl;
-    cout << "First few observed values:" << endl;
-    int stop = 0; 
-    for (int i = 0; i < (int)observedValueById.size(); i++) {
-        if (!std::isnan(observedValueById[i]) && stop < 15) {
-            cout << "  Atom " << i << " = " << observedValueById[i] << endl;
-            stop++; 
-        }
-    }
-    cout << "==========================\n" << endl;
+    // int numObserved = 0;
+    // for (double val : observedValueById) {
+    //     if (!std::isnan(val)) numObserved++;
+    // }
+    // cout << "\n=== Starting Substitution ===" << endl;
+    // cout << "Total atoms: " << observedValueById.size() << endl;
+    // cout << "Observed atoms: " << numObserved << " (" << (100.0 * numObserved / observedValueById.size()) << "%)" << endl;
+    // cout << "First few observed values:" << endl;
+    // int stop = 0; 
+    // for (int i = 0; i < (int)observedValueById.size(); i++) {
+    //     if (!std::isnan(observedValueById[i]) && stop < 15) {
+    //         cout << "  Atom " << i << " = " << observedValueById[i] << endl;
+    //         stop++; 
+    //     }
+    // }
+    // cout << "==========================\n" << endl;
     // END DEBUG
 
     // std::cout << "Grounding resulted in a system with " << newNumVars << " variables and " << newNumConst << " constriants. Data is below:" << std::endl;

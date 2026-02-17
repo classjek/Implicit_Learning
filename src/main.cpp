@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
   //   std::string filename = "../data/groundFacts.pl";
   if (DATA_FILE == "") { 
     std::cout << "Warning: No data file indicated. Using default." << std::endl;
-    DATA_FILE = "R-HSA-1483249_data.pl";
+    DATA_FILE = "1483249_new.pl";
   }
   std::string filename = "../data/" + DATA_FILE;
 
@@ -84,12 +84,15 @@ int main(int argc, char** argv) {
   typedGroundNames.push_back(std::vector<std::string>(groundNames.enzymes.begin(), groundNames.enzymes.end()));
 
   if (fixedGene == "" && fixedEnzyme == ""){
-    std::cout << "Warning: No fixedGene and fixedEnzyme specified, using default" << std::endl;
-    fixedGene = "g100036608"; fixedEnzyme = "g100036608";
+    std::cout << " - Warning: No fixedGene and fixedEnzyme specified, using default" << std::endl;
+    fixedGene = "g100036608"; fixedEnzyme = "g100036608"; 
   }
   typedGroundNames.push_back(std::vector<std::string>{fixedGene}); 
   typedGroundNames.push_back(std::vector<std::string>{fixedEnzyme}); 
-
+  if (cl_atomName == "") { 
+    std::cout << " - Warning: No bounded atom specified, using default" << std::endl;
+    cl_atomName == "function(g100036608,ec_3_4_21)";
+  }
 
   // Read in Universally Quantified Constraints
   std::ifstream in("../data/universalConstraints.txt");   
@@ -125,16 +128,25 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
 groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+2); // genes 100
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+1); // enzymes 27
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+2); // enzymes 27
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds
 
 groundNamesTest[0].push_back("g100036608");
 groundNamesTest[0].push_back("g100037840");
 groundNamesTest[1].push_back("ec_3_1_3_48");
-groundNamesTest[1].push_back("ec_3_1_3_48");
+groundNamesTest[1].push_back("ec_2_3_2");
+groundNamesTest[3].push_back("ec_2_7_1_134");
+
 
 std::cout << std::endl;
+
+for (auto& elem : groundNamesTest[0]){
+    std::cout << " - [gene] " << elem << std::endl;
+}
+for (auto& elem : groundNamesTest[1]){
+    std::cout << " - [enzyme] " << elem << std::endl;
+}
 
 for (auto& elem : groundNamesTest) { std::cout << elem.size() << ", "; }
 
@@ -161,15 +173,9 @@ if (it == groundMap.end()){
     std::cout << " - Added bound: " << cl_atomName << " " << boundType << " " << boundValue << " (atomID=" << it->second << ") - \n" << std::endl;
 }
 
-
 // build observed values from facts
 // Build observed values from ground facts
 std::cout << "We have " << constraints.size() << " constraints" << std::endl;
-auto test_constraints = std::vector<kb::Constraint>(constraints.begin(), constraints.begin() + std::min(5, (int)constraints.size()));
-std::cout << "Called with " << test_constraints.size() << " constraints" << std::endl;
-// std::cout << test_constraints[0].poly.toString() << std::endl;
-// std::cout << test_constraints[1].poly.toString() << std::endl;
-// std::cout << test_constraints[2].poly.toString() << std::endl;
 std::vector<double> observedValueById = domain::buildObservedValues(constraints, groundMap, groundMap.size());
 
 std::vector<int> polyWidth; // holds the number of arguments taken by polynomial i

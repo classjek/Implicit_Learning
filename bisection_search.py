@@ -4,18 +4,16 @@ import subprocess
 import sys
 import os
 from pathlib import Path
+from datetime import datetime
 
 ## HARDCODED CONFIG FOR TESTING
-
 # Fixed parameters for grounding
-FIXED_GENE = "g100036608"
-FIXED_ENZYME = "ec_3_1_3_48"
+# FIXED_GENE = "g100036608"
+# FIXED_ENZYME = "ec_3_1_3_48"
+# RELATION_NAME = "function(g100036608,ec_3_4_21)"
+# LOG_FILE = "bisection_search" + RELATION_NAME + ".log"
+
 DATA_FILE = "R-HSA-1483249_data.pl"
-
-# Relation to find bounds for
-RELATION_NAME = "function(g100036608,ec_3_4_21)"
-
-LOG_FILE = "bisection_search" + RELATION_NAME + ".log";
 
 # Bisection search parameters
 BOUND_TYPE = 'upper'  # 'upper' or 'lower'
@@ -26,18 +24,44 @@ MAX_ITERATIONS = 100
 
 # Path to executable
 EXECUTABLE_PATH = './implicit_learning'
-
 #############################################
 
+def load_job_config(job_number, tsv_file='./data/jobArray_function.tsv'):
+    if not os.path.exists(tsv_file):
+        raise FileNotFoundError(f"Job array file not found: {tsv_file}")
+    
+    with open(tsv_file, 'r') as f:
+        lines = f.readlines()
+    
+    data_index = job_number  # job_number is 1-indexed, matches line 1 after header
+    
+    if data_index < 1 or data_index >= len(lines):
+        raise ValueError(f"Invalid job number {job_number}. Valid range: 1-{len(lines)-1}")
+    
+    # Parse TSV line
+    parts = lines[data_index].strip().split('\t')
+    if len(parts) != 3:
+        raise ValueError(f"Invalid TSV format at line {data_index}: expected 3 columns")
+    
+    # Format the fields
+    fixed_gene = 'g' + parts[0]  # Add 'g' prefix
+    fixed_enzyme = 'ec_' + parts[1].replace('.', '_').replace('-', '') 
+    ground_relation = parts[2]
+    
+    return fixed_gene, fixed_enzyme, ground_relation
+
+LOG_FILE = None  # Will be set in main() based on job number
+
+# print to both console and log file
 def log_print(message="", end="\n"):
-    """Print to both console and log file."""
     print(message, end=end)
-    with open(LOG_FILE, 'a') as f:
-        f.write(message + end)
+    if LOG_FILE is not None:
+        with open(LOG_FILE, 'a') as f:
+            f.write(message + end)
 
 
 class BisectionSearch:
-    def __init__(self, relation_name, bound_type, initial_lower, initial_upper, tolerance, max_iterations,
+    def __init__(self, job_number, relation_name, bound_type, initial_lower, initial_upper, tolerance, max_iterations,
                  fixed_gene, fixed_enzyme, data_file, executable_path):
         """
             relation_name: Name of the relation (e.g., "function(g100036608,ec_3_4_21)")
@@ -51,6 +75,7 @@ class BisectionSearch:
             data_file: Data file name
             executable_path: Path to compiled C++ executable
         """
+        self.job_number = job_number
         self.relation_name = relation_name
         self.bound_type = bound_type
         self.lower = initial_lower
@@ -61,6 +86,7 @@ class BisectionSearch:
         self.fixed_enzyme = fixed_enzyme
         self.data_file = data_file
         self.executable_path = executable_path
+        self.log_file = f"bisection_search_job{job_number}.log"  # Job-specific log
         
     # Run with a specified bound
     def run_cpp_program(self, bound_value):
@@ -218,23 +244,55 @@ class BisectionSearch:
         return final_bound
 
 
-def main():
+def main():    
+    global LOG_FILE 
+
+    # Parse command-line arguments
+    if len(sys.argv) != 2:
+        print("Usage: python3 bisection_search.py <job_number>")
+        print("\nExample:")
+        print("  python3 bisection_search.py 1")
+        print("\nJob configurations are read from jobArray_function.tsv")
+        sys.exit(1)
     
-    log_print("="*60)
-    log_print("CONFIGURATION")
-    log_print("="*60)
-    log_print(f"Fixed Gene:     {FIXED_GENE}")
-    log_print(f"Fixed Enzyme:   {FIXED_ENZYME}")
-    log_print(f"Data File:      {DATA_FILE}")
-    log_print(f"Relation:       {RELATION_NAME}")
-    log_print(f"Bound Type:     {BOUND_TYPE}")
-    log_print(f"Initial Range:  [{INITIAL_LOWER}, {INITIAL_UPPER}]")
-    log_print(f"Tolerance:      {TOLERANCE}")
-    log_print(f"Max Iterations: {MAX_ITERATIONS}")
-    log_print("="*60)
+    try:
+        job_number = int(sys.argv[1])
+    except ValueError:
+        print(f"ERROR: Job number must be an integer, got: {sys.argv[1]}")
+        sys.exit(1)
+    
+    # Load job-specific configuration from TSV
+    try:
+        FIXED_GENE, FIXED_ENZYME, RELATION_NAME = load_job_config(job_number)
+    except Exception as e:
+        print(f"ERROR loading job config: {e}")
+        sys.exit(1)
+
+    LOG_FILE = f"bisection_search_job{job_number}.log"
+
+    with open(LOG_FILE, 'w') as f:
+        f.write("="*60 + "\n")
+        f.write(f"BISECTION SEARCH LOG - Job {job_number}\n")
+        f.write(f"Started: {datetime.now()}\n")
+        f.write("="*60 + "\n\n")
+    
+    print("="*60)
+    print(f"JOB {job_number} CONFIGURATION")
+    print("="*60)
+    print(f"Fixed Gene:     {FIXED_GENE}")
+    print(f"Fixed Enzyme:   {FIXED_ENZYME}")
+    print(f"Data File:      {DATA_FILE}")
+    print(f"Relation:       {RELATION_NAME}")
+    print(f"Bound Type:     {BOUND_TYPE}")
+    print(f"Initial Range:  [{INITIAL_LOWER}, {INITIAL_UPPER}]")
+    print(f"Tolerance:      {TOLERANCE}")
+    print(f"Max Iterations: {MAX_ITERATIONS}")
+    print(f"Log File:       {LOG_FILE}")
+    print("="*60)
     
     # Create and run search
     search = BisectionSearch(
+        job_number=job_number,
         relation_name=RELATION_NAME,
         bound_type=BOUND_TYPE,
         initial_lower=INITIAL_LOWER,
@@ -250,6 +308,14 @@ def main():
     final_bound = search.search()
     
     if final_bound is not None:
+        # Write final result to a summary file
+        with open(f"result_job{job_number}.txt", 'w') as f:
+            f.write(f"Job: {job_number}\n")
+            f.write(f"Relation: {RELATION_NAME}\n")
+            f.write(f"Fixed Gene: {FIXED_GENE}\n")
+            f.write(f"Fixed Enzyme: {FIXED_ENZYME}\n")
+            f.write(f"Final {BOUND_TYPE} bound: {final_bound:.6f}\n")
+        print(f"\n✓ Result written to result_job{job_number}.txt")
         sys.exit(0)
     else:
         sys.exit(1)
