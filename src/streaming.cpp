@@ -170,7 +170,6 @@ void StreamingContext::start_block(int block_size) {
 void StreamingContext::write_entry(int var_num, int block, int row, int col, double coef) {
     if (is_counting_pass || output_file == nullptr) return;
     if (coef == 0.0) return;
-    if (var_num == 0) coef *= -1; // F_0 convention: negate
     
     // SDPA sparse format: var_num block row col value
     fprintf(output_file, "%d %d %d %d %15.10f\n", var_num, block, row, col, coef);
@@ -344,6 +343,10 @@ void convert_ineq_a_ba1_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                 }
             }
         }
+        // add trace objective for each diagonal position
+        for (int s = 0; s < sizeCone; s++) {
+            ctx.write_entry(0, ctx.nBlocks, s + 1, s + 1, 1e-3);
+        }
     }
 }
 
@@ -381,6 +384,11 @@ void convert_ineq_a_ba2_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                         }
                     }
                 }
+            }
+        }
+        if (!ctx.is_counting_pass) {
+            for (int j = 0; j < bsize; j++) {
+                ctx.write_entry(0, ctx.nBlocks, j + 1, j + 1, 1e-3);
             }
         }
     }
@@ -475,10 +483,60 @@ void convert_ba1mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
         int var_num = ctx.get_var_number(key);
         ctx.nBlocks++;  // Track block number for this pass
         ctx.write_entry(var_num, ctx.nBlocks, 1, 1, 1.0);
+        // add trace objective for this 1x1 moment block
+        ctx.write_entry(0, ctx.nBlocks, 1, 1, 1e-3);
     }
 }
 
-// create a moment matrix from a given monomial basis (bassinfo)
+// // create a moment matrix from a given monomial basis (bassinfo)
+// void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
+//     int bsize = bassinfo.pnz_size;
+
+//     if (ctx.is_counting_pass) {
+//         std::cout << "BA2MMT: bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
+//     }
+
+//     if (ctx.is_counting_pass) {
+//         // Pass 1: Register all monomials, create block
+//         ctx.start_block(bsize);  // Positive = full matrix of size bsize
+//         std::unordered_set<std::string> unique_basis; 
+
+//         for (int i = 0; i < bsize; i++) {
+//             std::string s;
+//             int start = bassinfo.pnz[0][i];
+//             int len = bassinfo.pnz[1][i];
+//             if (start >= 0) {
+//                 for (int t = 0; t < len; t++) {
+//                     s += std::to_string(bassinfo.vap[0][start+t]) + "^" + 
+//                          std::to_string(bassinfo.vap[1][start+t]) + " ";
+//                 }
+//             }
+//             unique_basis.insert(s);
+//         }
+
+//         // Upper triangle: all pairs (i,j) where j >= i
+//         for (int i = 0; i < bsize; i++) {
+//             for (int j = i; j < bsize; j++) { // Merge basis[i] with basis[j]
+//                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
+//                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
+//                 ctx.register_monomial(key);
+//             }
+//         }
+//     } else { // second pass: write entries
+//         ctx.nBlocks++;
+//         for (int i = 0; i < bsize; i++) {
+//             for (int j = i; j < bsize; j++) {
+//                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
+//                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
+//                 int var_num = ctx.get_var_number(key);
+//                 ctx.write_entry(var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
+//             }
+//         }
+//     }
+// }
+
+// Set objective coefficient to 1e-12 for all diagonal entries of moment matrix
+// This change should help with numerical stability 
 void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
     int bsize = bassinfo.pnz_size;
 
@@ -486,8 +544,7 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
         std::cout << "BA2MMT: bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
     }
 
-    if (ctx.is_counting_pass) {
-        // Pass 1: Register all monomials, create block
+    if (ctx.is_counting_pass) { // Pass 1: Register all monomials, create block
         ctx.start_block(bsize);  // Positive = full matrix of size bsize
         std::unordered_set<std::string> unique_basis; 
 
@@ -506,20 +563,28 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
 
         // Upper triangle: all pairs (i,j) where j >= i
         for (int i = 0; i < bsize; i++) {
-            for (int j = i; j < bsize; j++) { // Merge basis[i] with basis[j]
+            for (int j = i; j < bsize; j++) {
                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                 ctx.register_monomial(key);
             }
         }
-    } else { // second pass: write entries
+    } else { // Pass 2: write entries AND set trace objective
+        // Pass 2: write constraint entries AND objective (trace) entries
         ctx.nBlocks++;
         for (int i = 0; i < bsize; i++) {
             for (int j = i; j < bsize; j++) {
                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
                 int var_num = ctx.get_var_number(key);
+
+                // Write constraint entry (var_num ≥ 1)
                 ctx.write_entry(var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
+
+                // Write objective entry for diagonal (var_num = 0)
+                if (i == j) {
+                    ctx.write_entry(0, ctx.nBlocks, i + 1, j + 1, 1e-3);
+                }
             }
         }
     }
