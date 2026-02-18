@@ -3796,6 +3796,25 @@ void conversion_part2(
     // Streaming Approach
     sr.timedata[18] = (double)clock();
     val = getmem();
+
+    if (polyinfo[0].sup.pnz_size == 0) { // add dummy objective
+    // std::cout << "[INFO] No objective detected -> adding dummy objective for cuLoRADS" << std::endl;
+        int dummy_var_idx = sr.Polysys.dimvar();
+    
+        polyinfo[0].sup.alloc(1, 1);
+        polyinfo[0].sup.pnz[0][0] = 0;
+        polyinfo[0].sup.pnz[1][0] = 1;
+        polyinfo[0].sup.vap[0][0] = dummy_var_idx;
+        polyinfo[0].sup.vap[1][0] = 1;
+        polyinfo[0].sup.pnz_size = 1;
+        polyinfo[0].sup.vap_size = 1;
+    
+        polyinfo[0].numMs = 1;
+        polyinfo[0].sizeCone = 1;
+        polyinfo[0].coef.resize(1);
+        polyinfo[0].coef[0].resize(1);
+        polyinfo[0].coef[0][0] = 1.0;
+    }
     
     // Streaming writes SDP directly to file with simplifications applied
     std::string outputFile = "../data/sparsepop_output_test.dat-s";
