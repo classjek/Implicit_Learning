@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
     metrics::Checkpoint cp("Program Start"); // For metrics tracking
 
     // Example cmd line: 
-    //        ./implicit_learning --bound-atom "function(g100036608,ec_3_4_21)" --bound-value 0.75 --bound-type upper --fixedGene "g100036608" --fixedEnzyme "ec_3_1_3_48" --fileName "R-HSA-1483249_data.pl"
+    //        hom./implicit_learning --bound-atom "function(g100036608,ec_3_4_21)" --bound-value 0.75 --bound-type upper --fixedGene "g100036608" --fixedEnzyme "ec_3_1_3_48" --fileName "R-HSA-1483249_data.pl"
 
     // Parse command-line arguments for bound constraint
     std::string DATA_FILE = ""; 
@@ -127,8 +127,8 @@ std::vector<std::vector<std::vector<int>>> finalResults(universal_constraints.si
 
 // Build smaller set of groundNames for testing
 std::vector<std::vector<std::string>> groundNamesTest(typedGroundNames.size());
-groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+10); // genes 100
-groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+10); // enzymes 27
+groundNamesTest[0].assign(typedGroundNames[0].begin(), typedGroundNames[0].begin()+3); // genes 100
+groundNamesTest[1].assign(typedGroundNames[1].begin(), typedGroundNames[1].begin()+3); // enzymes 27
 groundNamesTest[2].assign(typedGroundNames[2].begin(), typedGroundNames[2].begin()+1); // reactions
 groundNamesTest[3].assign(typedGroundNames[3].begin(), typedGroundNames[3].begin()+1); //compounds
 
@@ -156,7 +156,6 @@ std::cout << std::endl;
 // domain::generateGrounding(universal_constraints, typedGroundNames, groundMap, finalResults); // for Testing
 domain::generateGrounding(universal_constraints, groundNamesTest, groundMap, finalResults); // for Testing
 cp.tick("After grounding"); 
-
 
 std::vector<domain::BoundConstraint> bounds; 
 size_t hash = std::hash<std::string>{}(cl_atomName);
