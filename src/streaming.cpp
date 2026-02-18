@@ -209,6 +209,11 @@ void StreamingContext::write_header(const std::string& filename) {
     
     // Objective coefficients (will be filled by convert_obj_stream in pass 2)
     for (int i = 0; i < mDim-1; i++) {
+        // DEBUG
+        if (i < 5) { 
+            std::cout << "[-DEBUG WRITE-] obj_coef[" << i << "] = " << obj_coef[i] << std::endl;
+        }
+        // END DEBUG
         fprintf(output_file, "%.15e ", obj_coef[i]);
     }
     fprintf(output_file, "\n");
@@ -238,6 +243,9 @@ void convert_obj_stream(poly_info& polyinfo, StreamingContext& ctx) {
             simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
             simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
             int var_num = ctx.get_var_number(key);
+            // DEBUG
+            std::cout << "[-DEBUG OBJ-] Term " << i << ": var_num=" << var_num << ", coef=" << polyinfo.coef[i][0] << ", writing to obj_coef[" << (var_num-1) << "]" << std::endl;
+            // END DEBUG
             if (var_num > 0 && var_num <= ctx.obj_coef.size()) {
                 ctx.obj_coef[var_num - 1] = polyinfo.coef[i][0];
             }

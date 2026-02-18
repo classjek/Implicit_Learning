@@ -3809,24 +3809,24 @@ void conversion_part2(
         }
     }
     if (all_zero) {
-        // std::cout << "[INFO] All-zero objective detected - adding tiny coefficient for cuLoRADS" << std::endl;
+        std::cout << "[INFO] All-zero objective detected - adding tiny coefficient for cuLoRADS" << std::endl;
         if (polyinfo[0].numMs == 0 || polyinfo[0].coef.empty()) {
-            // Completely empty - need to build structure
-            // std::cout << "[INFO] Creating objective structure from scratch" << std::endl;
-            polyinfo[0].sup.alloc(1, 1);
-            polyinfo[0].sup.pnz[0][0] = 0;
-            polyinfo[0].sup.pnz[1][0] = 1;
-            polyinfo[0].sup.vap[0][0] = 0;
-            polyinfo[0].sup.vap[1][0] = 1;
+            // Create constant monomial (no variables)
+            std::cout << "[INFO] Creating constant objective" << std::endl;
+            polyinfo[0].sup.alloc(1, 0);  // 1 monomial, 0 variables (CONSTANT)
+            polyinfo[0].sup.pnz[0][0] = -1;   // Indicates empty/constant monomial
+            polyinfo[0].sup.pnz[1][0] = 0;    // 0 variables
             polyinfo[0].sup.pnz_size = 1;
-            polyinfo[0].sup.vap_size = 1;
+            polyinfo[0].sup.vap_size = 0;     // No variable data
             polyinfo[0].numMs = 1;
             polyinfo[0].sizeCone = 1;
             polyinfo[0].coef.resize(1);
             polyinfo[0].coef[0].resize(1);
         }
         // Set first coefficient to tiny value
-        polyinfo[0].coef[0][0] = 1e-8;
+        polyinfo[0].coef[0][0] = 1.0;
+        std::cout << "[INFO] Set objective to minimize constant 1.0" << std::endl;
+
     } // end adding obj function
     
     // Streaming writes SDP directly to file with simplifications applied
