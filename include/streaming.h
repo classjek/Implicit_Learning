@@ -45,7 +45,7 @@ struct StreamingContext {
     std::vector<int> block_struct; // Size of each block (positive = matrix, negative = diagonal)
     std::vector<int> block_offsets; // Starting entry index for each block
     
-    int mDim = 0; // Total number of SDP variables (unique monomials)
+    int mDim = 1; // Total number of SDP variables (unique monomials)
     int nBlocks = 0; // Total number of blocks
     
     // Objective coefficients (indexed by variable number)
