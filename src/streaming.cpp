@@ -541,7 +541,7 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
     int bsize = bassinfo.pnz_size;
 
     if (ctx.is_counting_pass) {
-        std::cout << "BA2MMT: bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
+        std::cout << "BA2MMT:  bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
     }
 
     if (ctx.is_counting_pass) { // Pass 1: Register all monomials, create block
@@ -603,7 +603,7 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
     // --- PASS 1: Count monomials, build structure ---
     convert_obj_stream(polyinfo[0], ctx);
     
-    std::cout << "After convert_obj_stream" << std::endl;
+    std::cout << "After convert_obj_stream:       (polyinfo.size=" << polyinfo.size() << ", msize=" << msize << ", bassinfo.size=" << bassinfo.size() << ")" << std::endl;
     
     for (int i = 1; i < msize; i++) {
         int before = ctx.mDim; 
