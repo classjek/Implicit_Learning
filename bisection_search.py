@@ -13,7 +13,8 @@ from datetime import datetime
 # RELATION_NAME = "function(g100036608,ec_3_4_21)"
 # LOG_FILE = "bisection_search" + RELATION_NAME + ".log"
 
-DATA_FILE = "R-HSA-1483249_data.pl"
+#DATA_FILE = "R-HSA-1483249_data.pl"
+DATA_FILE = "1483249_new.pl"
 
 # Bisection search parameters
 BOUND_TYPE = 'upper'  # 'upper' or 'lower'
