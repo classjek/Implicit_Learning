@@ -3737,7 +3737,7 @@ void conversion_part2(
     // Build the symmetry map and print which variables are merged
     std::vector<int> var_map = build_symmetry_map(wl_labels, newNumVars, observedValueById);
 
-    // // Print the equivalence classes for verification
+    // Print the equivalence classes for verification
     // std::cout << "\n[WL] Equivalence classes (only non-trivial):" << std::endl;
     // std::unordered_map<int, std::vector<int>> classes; 
     // for (int v = 0; v < newNumVars; v++) {
@@ -3755,11 +3755,168 @@ void conversion_part2(
     // std::cout << std::endl;
 
 
+    // Rebuild monoLists with var_map applied 
+    //   For each polynomial, copy the existing monoList, clear it, then
+    //   re-add each monomial with supIdx remapped through var_map.
+    for (auto& p : sr.Polysys.polynomial) {
+        std::vector<mono> oldMonos(p.monoList.begin(), p.monoList.end()); // deep copy old monoLists
+        p.monoList.clear();
+        p.noTerms = 0;
+        for (auto& m : oldMonos) {
+            mono newMono;
+            newMono.allocCoef(1);
+            newMono.Coef[0] = m.Coef[0];
+
+            // Remap supIdx through var_map, keeping supVal parallel
+            std::vector<std::pair<int,int>> idx_val;
+            for (int k = 0; k < (int)m.supIdx.size(); k++) {
+                int orig = m.supIdx[k];
+                int mapped = (orig < (int)var_map.size()) ? var_map[orig] : orig;
+                idx_val.push_back({mapped, m.supVal[k]});
+            }
+            // Sort by variable index for canonical ordering (required so addMono can correctly detect duplicate monomials)
+            std::sort(idx_val.begin(), idx_val.end());
+            for (auto& iv : idx_val) {
+                newMono.supIdx.push_back(iv.first);
+                newMono.supVal.push_back(iv.second);
+            }
+            // addMono merges identical monomials and handles zero cancellation
+            p.addMono(newMono);
+        }
+    }
+    std::cout << "[WL] Step 1 complete: monoLists rebuilt with var_map applied" << std::endl;
+
+    // // For testing our mapping
+    // cout << '\n' << "------Printing NEW Polynomials (after var_map) -------" << endl;
+    // for (auto& poly : sr.Polysys.polynomial) {
+    //     printPolynomial(poly, "resulting poly");
+    // }
+    // cout << "------Done Printing NEW Polynomials-------" << endl;
+
+    // Scan all polynomial supIdx values to find which variable indices
+    // are still actually in use after Step 1's remapping -> assign them contiguous indices 
+    std::set<int> active_vars;
+    for (const auto& p : sr.Polysys.polynomial) {
+        for (const auto& m : p.monoList) {
+            for (int v : m.supIdx) {
+                active_vars.insert(v);
+            }
+        }
+    }
+    // Build compact_map[old_index] = new_contiguous_index
+    // std::set is sorted, so iteration is in ascending order -> guarantees deterministic assignment (x0→0, x1→1, x2→2, x4→3, x5→4)
+    std::vector<int> compact_map(newNumVars, -1);
+    int k = 0;
+    for (int v : active_vars) {
+        compact_map[v] = k++;
+    }
+    // k is now the compacted variable count
+    std::cout << "[WL] Step 2 complete: " << active_vars.size() << " active variables will be compacted to indices 0.." << (k-1) << std::endl;
+    // std::cout << "[WL] Compaction map: ";
+    // for (int v = 0; v < newNumVars; v++) {
+    //     if (compact_map[v] != -1)
+    //         std::cout << "x" << v << "->x" << compact_map[v] << " ";
+    // }
+    
+    // Apply compact_map to polynomial supIdx and update poly.dimVar to k
+    for (auto& p : sr.Polysys.polynomial) {
+        for (auto& m : p.monoList) {
+            for (int& v : m.supIdx) {
+                v = compact_map[v];
+            }
+        }
+        p.setDimVar(k);
+    }
+    std::cout << "[WL] Step 3 complete: compact_map applied to all polynomials" << std::endl;
+
+    // Remap sr.bindices: apply var_map to every ID, then deduplicate
+    for (auto& bindList : sr.bindices) {
+        std::set<int> remapped;
+        for (int v : bindList) {
+            int rep = (v < (int)var_map.size()) ? var_map[v] : v;
+            int compacted = (rep < (int)compact_map.size() && compact_map[rep] != -1) ? compact_map[rep] : rep;
+            remapped.insert(compacted);
+        }
+        bindList.assign(remapped.begin(), remapped.end());
+    }
+    std::cout << "[WL] Step 4 complete: bindices remapped and deduplicated" << std::endl;
+
+    // Update size-dependent metadata //
+    newNumVars = k;
+    sr.Polysys.dimVar = k;
+    // Rebuild bounds arrays for the compacted variable space
+    // need the INVERSE of compact_map: compacted index -> original rep.
+    std::vector<double> compactLo(k), compactUp(k);
+    for (int v = 0; v < (int)compact_map.size(); v++) {
+        if (compact_map[v] != -1) {
+            compactLo[compact_map[v]] = newLo[v];
+            compactUp[compact_map[v]] = newUp[v];
+        }
+    }
+    sr.Polysys.bounds.setAll(compactLo, compactUp);
+    sr.Polysys.boundsNew.setAll(compactLo, compactUp);
+    sr.Polysys.posOflbds.resize(k);
+    sr.Polysys.posOfubds.resize(k);
+    // resize all vectors that were set to old newNumVars
+    sr.permmatrix.assign(k, 1.0);
+    sr.bvect.assign(k, 0.0);
+    fixedVar[0].assign(k, 0.0);
+    fixedVar[1].assign(k, 0.0);
+
+    std::cout << "[WL] Steps 5-8 complete: metadata updated to " << k << " variables" << std::endl;
+
+
+    // Deduplication: Remove polynomials that are identical after equivalence variable mapping // 
+
+    // Build a canonical fingerprint string for one polynomial
+    auto poly_fingerprint = [](const poly& p) -> std::string {
+        std::vector<std::string> mono_strs;
+        for (const auto& m : p.monoList) {
+            // Use high-precision coefficient to avoid false equality
+            char coef_buf[64];
+            snprintf(coef_buf, sizeof(coef_buf), "%.10f", m.Coef.empty() ? 0.0 : m.Coef[0]);
+            std::string ms = std::string(coef_buf) + ":";
+            for (int kk = 0; kk < (int)m.supIdx.size(); kk++) {
+                ms += std::to_string(m.supIdx[kk]) + "^" + std::to_string(m.supVal[kk]) + ",";
+            }
+            mono_strs.push_back(ms);
+        }
+        // Sort so monoList insertion order doesn't affect the fingerprint
+        std::sort(mono_strs.begin(), mono_strs.end());
+        std::string fp = std::to_string(p.typeCone) + "|";
+        for (const auto& s : mono_strs) fp += s + ";";
+        return fp;
+    };
+    std::set<std::string> seen_fps;
+    std::vector<poly> dedup_polys;
+    std::vector<std::list<int>> dedup_bindices;
+
+    for (int i = 0; i < (int)sr.Polysys.polynomial.size(); i++) {
+        std::string fp = poly_fingerprint(sr.Polysys.polynomial[i]);
+        if (seen_fps.insert(fp).second) {
+            dedup_polys.push_back(sr.Polysys.polynomial[i]);
+            dedup_bindices.push_back(sr.bindices[i]);
+        }
+    }
+
+    int removed = (int)sr.Polysys.polynomial.size() - (int)dedup_polys.size();
+    sr.Polysys.polynomial = std::move(dedup_polys);
+    sr.bindices           = std::move(dedup_bindices);
+    sr.Polysys.numSys     = (int)sr.Polysys.polynomial.size();
+    newNumConst           = sr.Polysys.numSys;
+
+    std::cout << "[WL] Dedup complete: removed " << removed << " duplicate polynomials, " << sr.Polysys.polynomial.size() << " remain" << std::endl;
+
+    // cout << '\n' << "------Printing NEW Polynomials (after all changes) -------" << endl;
+    // for (auto& poly : sr.Polysys.polynomial) {
+    //     printPolynomial(poly, "resulting poly");
+    // }
+    // cout << "------Done Printing NEW Polynomials-------" << endl;
+
+
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
 
-    //////////////////////////////////
-    //////////////////////////////////
     
     // Generate sets of basis supports
     // takes the variable sets created by gen_basisindices and generates the monomial supports
@@ -4012,7 +4169,7 @@ void conversion_part2(
     // Streaming writes SDP directly to file with simplifications applied
     std::string outputFile = "../data/sparsepop_output_test.dat-s";
     std::cout << "\nWriting SDP to: " << outputFile << std::endl;
-    // stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
+    stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
     std::cout << "SDP file written successfully!" << std::endl;
     
     sr.timedata[19] = (double)clock();
