@@ -21,6 +21,7 @@
 
 #include <iostream>
 #include <string>
+#include <cstring>
 #include <unordered_map>
 #include "conversion.h"
 #include "streaming.h"
@@ -3316,6 +3317,194 @@ void addPolynomialGround(class s3r & sr, int& i, const int& pwidth, const vector
     }
 }
 
+/////////
+// Helper functions for WL Fingerprint Calculation (used for identifying equivalence in the constraint set)
+/////////
+
+static inline size_t wl_hash_combine(size_t seed, size_t val) {
+    return seed ^ (val + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+}
+
+// Bit-exact hash of a double (handles -0.0 == 0.0 issue via memcpy)
+static inline size_t wl_hash_double(double d) {
+    // Canonicalize -0.0 → 0.0
+    if (d == 0.0) d = 0.0;
+    uint64_t bits = 0;
+    std::memcpy(&bits, &d, sizeof(bits));
+    return std::hash<uint64_t>{}(bits);
+}
+
+
+// Hash one monomial from variable v's perspective
+//    The result is the same regardless of the internal order of
+//    supIdx / supVal, because we sort neighbor contributions.
+static size_t wl_hash_mono_view(const mono& m, int v, const std::vector<size_t>& label) {
+    double coef = m.Coef.empty() ? 0.0 : m.Coef[0];
+    size_t h = wl_hash_double(coef);
+
+    // Walk through the sparse support
+    int v_exp = 0;
+    std::vector<size_t> neighbor_hashes;
+
+    for (int k = 0; k < (int)m.supIdx.size(); k++) {
+        int var = m.supIdx[k];
+        int exp = m.supVal[k];
+        if (var == v) {
+            v_exp = exp;
+        } else {
+            // pair (label[var], exp) → one hash contribution
+            size_t nh = wl_hash_combine(label[var], std::hash<int>{}(exp));
+            neighbor_hashes.push_back(nh);
+        }
+    }
+    // Sort so the result doesn't depend on supIdx ordering
+    std::sort(neighbor_hashes.begin(), neighbor_hashes.end());
+
+    h = wl_hash_combine(h, std::hash<int>{}(v_exp));
+    for (size_t nh : neighbor_hashes)
+        h = wl_hash_combine(h, nh);
+
+    return h;
+}
+
+// Hash one full polynomial from variable v's perspective
+static size_t wl_hash_poly_view(const poly& p, int v, const std::vector<size_t>& label) {
+    size_t h = std::hash<int>{}(p.typeCone);
+
+    // Hash every monomial and collect in a vector, then sort
+    // (so insertion order into monoList doesn't matter)
+    std::vector<size_t> mono_hashes;
+    mono_hashes.reserve(p.noTerms);
+
+    for (const mono& m : p.monoList) {
+        mono_hashes.push_back(wl_hash_mono_view(m, v, label));
+    }
+    std::sort(mono_hashes.begin(), mono_hashes.end());
+
+    for (size_t mh : mono_hashes) h = wl_hash_combine(h, mh);
+
+    return h;
+}
+
+
+// Full 
+static std::vector<size_t> compute_wl_fingerprints(const std::vector<poly>& polys, int numVars, const std::vector<double>& obsValue) {
+    const size_t OBS_SEED = 0xDEADBEEF12345678ULL;
+    const size_t UNK_SEED = 0xCAFEBABE87654321ULL;
+    const int MAX_ITER = 50; //if doesn't converge in iter < 5, something probably aint right
+
+    // Build reverse index: atom_id -> polynomial indices (deduplicated)
+    std::vector<std::vector<int>> var_to_polys(numVars);
+    for (int p = 0; p < (int)polys.size(); p++) {
+        std::unordered_set<int> seen;
+        for (const mono& m : polys[p].monoList)
+            for (int var : m.supIdx)
+                if (var >= 0 && var < numVars && seen.insert(var).second)
+                    var_to_polys[var].push_back(p);
+    }
+
+    // Round 0: initial labels
+    std::vector<size_t> label(numVars);
+    for (int v = 0; v < numVars; v++) {
+        bool is_obs = (v < (int)obsValue.size()) && !std::isnan(obsValue[v]);
+        label[v] = is_obs
+            ? wl_hash_combine(OBS_SEED, wl_hash_double(obsValue[v]))
+            : UNK_SEED;
+    }
+
+    // Helper: canonicalize a raw hash vector into sequential integers 
+    auto canonicalize = [&](const std::vector<size_t>& raw) -> std::vector<size_t> {
+        std::map<size_t, size_t> hash_to_id;
+        size_t next_id = 0;
+        std::vector<size_t> canon(numVars);
+        for (int v = 0; v < numVars; v++) {
+            auto it = hash_to_id.find(raw[v]);
+            if (it == hash_to_id.end()) hash_to_id[raw[v]] = next_id++;
+            canon[v] = hash_to_id[raw[v]];
+        }
+        return canon;
+    };
+
+    // Helper: check if two canonical label vectors define the same partition (the mapping old-new is bijection)
+    auto same_partition = [&](const std::vector<size_t>& old_c, const std::vector<size_t>& new_c) -> bool {
+        std::unordered_map<size_t, size_t> fwd, bwd;
+        for (int v = 0; v < numVars; v++) {
+            size_t o = old_c[v], n = new_c[v];
+            auto fit = fwd.find(o);
+            if (fit == fwd.end()) fwd[o] = n;
+            else if (fit->second != n) return false;
+            auto bit = bwd.find(n);
+            if (bit == bwd.end()) bwd[n] = o;
+            else if (bit->second != o) return false;
+        }
+        return true;
+    };
+
+    label = canonicalize(label);  // start from canonical round-0
+
+    for (int iter = 0; iter < MAX_ITER; iter++) {
+        // Compute raw new hashes using current canonical labels
+        std::vector<size_t> new_label(numVars);
+        for (int v = 0; v < numVars; v++) {
+            bool is_obs = (v < (int)obsValue.size()) && !std::isnan(obsValue[v]);
+            if (is_obs) { new_label[v] = label[v]; continue; }
+
+            std::vector<size_t> poly_hashes;
+            for (int p : var_to_polys[v])
+                poly_hashes.push_back(wl_hash_poly_view(polys[p], v, label));
+            std::sort(poly_hashes.begin(), poly_hashes.end());
+
+            size_t h = label[v];
+            for (size_t ph : poly_hashes) h = wl_hash_combine(h, ph);
+            new_label[v] = h;
+        }
+
+        std::vector<size_t> canon = canonicalize(new_label);
+
+        size_t num_classes = *std::max_element(canon.begin(), canon.end()) + 1;
+        // std::cout << "[WL] Iteration " << (iter+1) << ", distinct labels: " << num_classes << std::endl;
+
+        if (same_partition(label, canon)) {
+            std::cout << "[WL] Converged after " << (iter+1) << " iteration(s)" << std::endl;
+            return canon;
+        }
+        label = canon;
+    }
+
+    std::cout << "[WL] WARNING: hit iteration cap of " << MAX_ITER << std::endl;
+    return label;
+}
+
+
+// Build symmetry map
+//   Returns var_map[v] = representative of v's equivalence class.
+static std::vector<int> build_symmetry_map(const std::vector<size_t>& label, int numVars, const std::vector<double>& obsValue) {
+    std::vector<int> var_map(numVars);
+    std::iota(var_map.begin(), var_map.end(), 0); // identity by default
+    std::unordered_map<size_t, int> label_to_rep;
+
+    for (int v = 0; v < numVars; v++) {
+        bool is_obs = (v < (int)obsValue.size()) && !std::isnan(obsValue[v]);
+        if (is_obs) continue; // don't merge observed variables
+
+        auto it = label_to_rep.find(label[v]);
+        if (it == label_to_rep.end()) {
+            label_to_rep[label[v]] = v; // v is the representative
+            var_map[v] = v;
+        } else {
+            var_map[v] = it->second; // map v to the earlier representative
+        }
+    }
+
+    // Count how number of variables merged
+    int merged = 0;
+    for (int v = 0; v < numVars; v++)
+        if (var_map[v] != v) merged++;
+    std::cout << "[WL] Merged " << merged << " variables (out of " << numVars << " total)" << std::endl;
+
+    return var_map;
+}
+
 
 void conversion_part2(
         /*IN*/  class s3r & sr,
@@ -3534,7 +3723,7 @@ void conversion_part2(
     fixedVar[1] = vector<double>(newNumVars, 0); // dummy value 
 
     // Update each polynomial with new variable size and print them
-    // cout << '\n' << "------Printing NEW Polynomials-------" << endl;
+    // cout << '\n' << "------Printing NEW Polynomials (before symmetry merge) -------" << endl;
     // for (auto& poly : sr.Polysys.polynomial) {
     //     poly.setDimVar(newNumVars);
     //     printPolynomial(poly, "resulting poly");
@@ -3542,10 +3731,33 @@ void conversion_part2(
     // cout << "------Done Printing NEW Polynomials-------" << endl;
     // printBindices(sr.bindices, newNumConst, sr.maxcliques.numcliques, "New Bindices");
 
+    // Run WL fingerprinting
+    std::vector<size_t> wl_labels = compute_wl_fingerprints(sr.Polysys.polynomial, newNumVars, observedValueById);
+
+    // Build the symmetry map and print which variables are merged
+    std::vector<int> var_map = build_symmetry_map(wl_labels, newNumVars, observedValueById);
+
+    // // Print the equivalence classes for verification
+    // std::cout << "\n[WL] Equivalence classes (only non-trivial):" << std::endl;
+    // std::unordered_map<int, std::vector<int>> classes; 
+    // for (int v = 0; v < newNumVars; v++) {
+    //     bool is_obs = (v < (int)observedValueById.size()) && !std::isnan(observedValueById[v]);
+    //     if (!is_obs) classes[var_map[v]].push_back(v);
+    // }
+    // for (auto& kv : classes) {
+    //     if (kv.second.size() > 1) {  // only print non-trivial classes
+    //         std::cout << "  x" << kv.first << " <-- also represented by: ";
+    //         for (int i = 1; i < (int)kv.second.size(); i++)
+    //             std::cout << "x" << kv.second[i] << " ";
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // std::cout << std::endl;
+
+
     // resize degOne terms, which was previously sized to match the number of original variables
     sr.degOneTerms.resize(newNumVars, 0);
 
-    cout << endl;
     //////////////////////////////////
     //////////////////////////////////
     
@@ -3800,7 +4012,7 @@ void conversion_part2(
     // Streaming writes SDP directly to file with simplifications applied
     std::string outputFile = "../data/sparsepop_output_test.dat-s";
     std::cout << "\nWriting SDP to: " << outputFile << std::endl;
-    stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
+    // stream_psdp_to_file(sr.Polysys.dimvar(), msize, polyinfo, bassinfo, outputFile, binvec, Sqvec);
     std::cout << "SDP file written successfully!" << std::endl;
     
     sr.timedata[19] = (double)clock();
