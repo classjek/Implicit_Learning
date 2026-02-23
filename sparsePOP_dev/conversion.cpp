@@ -3899,6 +3899,10 @@ void conversion_part2(
         }
     }
 
+    for (int i = (int)sr.Polysys.polynomial.size(); i < (int)sr.bindices.size(); i++) {
+        dedup_bindices.push_back(sr.bindices[i]);
+    }
+
     int removed = (int)sr.Polysys.polynomial.size() - (int)dedup_polys.size();
     sr.Polysys.polynomial = std::move(dedup_polys);
     sr.bindices           = std::move(dedup_bindices);
