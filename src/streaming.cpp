@@ -255,6 +255,7 @@ void convert_obj_stream(poly_info& polyinfo, StreamingContext& ctx) {
 void convert_eq_stream(poly_info& polyinfo, spvec_array& bassinfo, StreamingContext& ctx) {
     int num_terms = polyinfo.sup.pnz_size;
     int bsize = bassinfo.pnz_size;
+    if (bsize == 0) return;
     int sizeCone = polyinfo.sizeCone;
     int move_size = bsize + sizeCone - 1;
     

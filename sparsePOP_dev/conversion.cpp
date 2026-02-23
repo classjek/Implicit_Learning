@@ -3699,7 +3699,8 @@ void conversion_part2(
         
             // Add to bindices (convert set to list)
             list<int> boundList(boundBindices[i].begin(), boundBindices[i].end());
-            newBindices.push_back(boundList);
+            newBindices.insert(newBindices.end() - sr.maxcliques.numcliques, boundList);
+            // newBindices.push_back(boundList);
         
             newNumConst++;
         }
@@ -3993,13 +3994,26 @@ void conversion_part2(
 		}
 	}
 	//eliminate supports of each basis supports, using  xi*(xi-1)=0
-	if(sr.param.binarySW==YES){
-		get_binarySup(sr.Polysys, binvec);
-		if(binvec.empty() == false){
-			sr.eraseBinarySups(binvec, BasisSupports.supsetArray);
-			sr.eraseBinaryInObj(binvec);
-		}
-	}
+	// if(sr.param.binarySW==YES){
+	// 	get_binarySup(sr.Polysys, binvec);
+	// 	if(binvec.empty() == false){
+	// 		sr.eraseBinarySups(binvec, BasisSupports.supsetArray);
+	// 		sr.eraseBinaryInObj(binvec);
+	// 	}
+	// }
+    if(sr.param.binarySW==YES){
+        get_binarySup(sr.Polysys, binvec);
+        // WL dedup leaves only ~3 unique binary constraints, but ALL
+        // compacted variables are binary — expand binvec to cover all of them.
+        binvec.clear();
+        for (int i = 0; i < sr.Polysys.dimvar(); i++) {
+            binvec.push_back(i);
+        }
+        if(binvec.empty() == false){
+            sr.eraseBinarySups(binvec, BasisSupports.supsetArray);
+            sr.eraseBinaryInObj(binvec);
+        }
+    }
 	//eliminate supports of each basis supports, using xi^2 -1=0
 	if(sr.param.SquareOneSW==YES){
 		get_SquareOneSup(sr.Polysys, Sqvec);
