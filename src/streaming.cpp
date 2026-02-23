@@ -639,6 +639,18 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
     
     // prepare for pass 2
     ctx.finalize_counting();
+
+    // give cuLoRADS a non-trivial objective 
+    {
+        MonomialKey const_key;  // empty key = constant monomial 1
+        auto it = ctx.monomial_to_var.find(const_key);
+        if (it != ctx.monomial_to_var.end()) {
+            int const_var = it->second;
+            if (const_var >= 1 && const_var <= (int)ctx.obj_coef.size()) {
+                ctx.obj_coef[const_var - 1] = 1.0;
+            }
+        }
+    }
     
     // Open output file
     ctx.output_file = fopen(sdpafile.c_str(), "w");
