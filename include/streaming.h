@@ -47,6 +47,7 @@ struct StreamingContext {
     
     int mDim = 1; // Total number of SDP variables (unique monomials)
     int nBlocks = 0; // Total number of blocks
+    int trace_norm_var_num = -1; 
     
     // Objective coefficients (indexed by variable number)
     std::vector<double> obj_coef;

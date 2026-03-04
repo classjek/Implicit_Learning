@@ -484,6 +484,12 @@ void convert_ba1mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
         int var_num = ctx.get_var_number(key);
         ctx.nBlocks++;  // Track block number for this pass
         ctx.write_entry(var_num, ctx.nBlocks, 1, 1, 1.0);
+
+        // trace normalization variable contributes +1 on diag of moment blocks
+        if (ctx.trace_norm_var_num > 0) {
+            ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, 1, 1, 1.0);
+        }
+
         // add trace objective for this 1x1 moment block
         ctx.write_entry(0, ctx.nBlocks, 1, 1, 1e-3);
     }
@@ -584,7 +590,10 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
 
                 // Write objective entry for diagonal (var_num = 0)
                 if (i == j) {
-                    ctx.write_entry(0, ctx.nBlocks, i + 1, j + 1, 1e-3);
+                    if (ctx.trace_norm_var_num > 0) { 
+                        ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
+                    }
+                    ctx.write_entry(0, ctx.nBlocks, i+1, j+1, 1e-3);
                 }
             }
         }
@@ -637,21 +646,28 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
             // std::cout << "BA2MMT[" << i << "] added " << (ctx.mDim - before) << " monomials" << std::endl;
         }
     }
+
     
     // prepare for pass 2
     ctx.finalize_counting();
 
-    // give cuLoRADS a non-trivial objective 
-    {
-        MonomialKey const_key;  // empty key = constant monomial 1
-        auto it = ctx.monomial_to_var.find(const_key);
-        if (it != ctx.monomial_to_var.end()) {
-            int const_var = it->second;
-            if (const_var >= 1 && const_var <= (int)ctx.obj_coef.size()) {
-                ctx.obj_coef[const_var - 1] = 1.0;
-            }
-        }
-    }
+    ctx.trace_norm_var_num = ctx.mDim; 
+    ctx.mDim++; 
+    ctx.obj_coef.resize(ctx.mDim + 1, 0.0); 
+    ctx.obj_coef[ctx.trace_norm_var_num - 1] = 1.0; 
+
+    // // give cuLoRADS a non-trivial objective 
+    // {
+    //     MonomialKey const_key;  // empty key = constant monomial 1
+    //     auto it = ctx.monomial_to_var.find(const_key);
+    //     if (it != ctx.monomial_to_var.end()) {
+    //         int const_var = it->second;
+    //         ctx.const_var_num = const_var; 
+    //         if (const_var >= 1 && const_var <= (int)ctx.obj_coef.size()) {
+    //             ctx.obj_coef[const_var - 1] = 1.0;
+    //         }
+    //     }
+    // }
     
     // Open output file
     ctx.output_file = fopen(sdpafile.c_str(), "w");
