@@ -5,6 +5,8 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
+from run_mosek import solve as mosek_solve
+import time
 
 ## HARDCODED CONFIG FOR TESTING
 # Fixed parameters for grounding
@@ -16,8 +18,11 @@ from datetime import datetime
 #DATA_FILE = "R-HSA-1483249_data.pl"
 DATA_FILE = "1483249_new.pl"
 
+# Solver toggle: 'MOSEK' or 'CULORADS'
+SOLVER = 'MOSEK' 
+
 # Bisection search parameters
-BOUND_TYPE = 'upper'  # 'upper' or 'lower'
+BOUND_TYPE = 'lower'  # 'upper' or 'lower'
 INITIAL_LOWER = 0.0
 INITIAL_UPPER = 1.0
 TOLERANCE = 0.01
@@ -117,66 +122,124 @@ class BisectionSearch:
             log_print(f"  ERROR: Failed to run C++ program: {e}")
             return False
     
-    # Todo
-    def check_feasibility(self, culorads_timeout=3600):
+    # # Todo
+    # def check_feasibility(self, culorads_timeout=3600):
+    #     output_file = Path('./data/sparsepop_output_test.dat-s')
+
+    #     if not output_file.exists():
+    #         log_print(f"  Output file not found: {output_file}")
+    #         return False
+    
+    #     file_size = output_file.stat().st_size
+    #     log_print(f"  Found output file: {output_file} ({file_size} bytes)")
+
+    #     # Run cuLoRADS
+    #     culorads_cmd = [
+    #         '/culorads/bin/cuLoRADS',
+    #         '--filePath', str(output_file.absolute()),
+    #         '--timeSecLimit', str(culorads_timeout)
+    #     ]
+    #     log_print(f"  Running cuLoRADS (timeout: {culorads_timeout}s)...")
+    
+    #     try:
+    #         result = subprocess.run(
+    #             culorads_cmd,
+    #             capture_output=True,
+    #             text=True,
+    #             timeout=culorads_timeout + 10
+    #         )
+
+    #         # Check if cuLoRADS succeeded
+    #         if result.returncode != 0:
+    #             log_print(f"cuLoRADS failed with exit code {result.returncode}")
+    #             log_print(f"  stderr: {result.stderr[:200]}")  # First 200 chars
+    #             #output_file.unlink()
+    #             return False
+
+    #         # Parse output to determine feasibility
+    #         output = result.stdout
+
+    #         # Look for the success marker
+    #         if "Problem Solved" in output:
+    #             log_print(f"cuLoRADS solved successfully - FEASIBLE")
+    #             is_feasible = True
+    #         else:
+    #             log_print(f"cuLoRADS did not solve - INFEASIBLE")
+    #             is_feasible = False
+
+    #         # Cleanup
+    #         #output_file.unlink()
+    #         log_print(f"Deleted output file")
+        
+    #         return is_feasible
+        
+    #     except subprocess.TimeoutExpired:
+    #         log_print(f"cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
+    #         #output_file.unlink()
+    #         return False
+    #     except Exception as e:
+    #         log_print(f"  Error running cuLoRADS: {e}")
+    #         #output_file.unlink()
+    #         return False
+    
+    def check_feasibility(self, solver_timeout=3600):
         output_file = Path('./data/sparsepop_output_test.dat-s')
 
         if not output_file.exists():
             log_print(f"  Output file not found: {output_file}")
             return False
-    
+
         file_size = output_file.stat().st_size
         log_print(f"  Found output file: {output_file} ({file_size} bytes)")
-    
-        # Run cuLoRADS
+
+        if SOLVER == 'MOSEK':
+            return self._check_feasibility_mosek(output_file)
+        else:
+            return self._check_feasibility_culorads(output_file, solver_timeout)
+
+    def _check_feasibility_mosek(self, output_file):
+        log_print(f"  Running MOSEK ...")
+        try:
+            prob = mosek_solve(str(output_file.absolute()), verbose=True)
+            if prob.status == 'optimal':
+                log_print(f"  MOSEK: FEASIBLE (status={prob.status}, obj={prob.value:.3e})")
+                return True
+            else:
+                log_print(f"  MOSEK: INFEASIBLE (status={prob.status})")
+                return False
+        except Exception as e:
+            log_print(f"  ERROR running MOSEK: {e}")
+            return False
+
+    def _check_feasibility_culorads(self, output_file, culorads_timeout=3600):
         culorads_cmd = [
-            './bin/cuLoRADS',
+            '/culorads/bin/cuLoRADS',
             '--filePath', str(output_file.absolute()),
             '--timeSecLimit', str(culorads_timeout)
         ]
         log_print(f"  Running cuLoRADS (timeout: {culorads_timeout}s)...")
-    
         try:
             result = subprocess.run(
-                culorads_cmd,
-                capture_output=True,
-                text=True,
-                timeout=culorads_timeout + 10
+                culorads_cmd, capture_output=True, text=True, timeout=culorads_timeout + 10
             )
-
-            # Check if cuLoRADS succeeded
             if result.returncode != 0:
-                log_print(f"cuLoRADS failed with exit code {result.returncode}")
-                log_print(f"  stderr: {result.stderr[:200]}")  # First 200 chars
-                output_file.unlink()
+                log_print(f"  cuLoRADS failed with exit code {result.returncode}")
+                log_print(f"  stderr: {result.stderr[:200]}")
                 return False
-
-            # Parse output to determine feasibility
             output = result.stdout
-
-            # Look for the success marker
             if "Problem Solved" in output:
-                log_print(f"cuLoRADS solved successfully - FEASIBLE")
-                is_feasible = True
+                log_print(f"  cuLoRADS: FEASIBLE")
+                return True
             else:
-                log_print(f"cuLoRADS did not solve - INFEASIBLE")
-                is_feasible = False
-
-            # Cleanup
-            output_file.unlink()
-            log_print(f"Deleted output file")
-        
-            return is_feasible
-        
+                log_print(f"  cuLoRADS: INFEASIBLE")
+                return False
         except subprocess.TimeoutExpired:
-            log_print(f"cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
-            output_file.unlink()
+            log_print(f"  cuLoRADS timed out after {culorads_timeout}s - treating as INFEASIBLE")
             return False
         except Exception as e:
             log_print(f"  Error running cuLoRADS: {e}")
-            output_file.unlink()
             return False
-    
+
     def search(self):
 
         log_print(f"\n{'='*60}")
@@ -190,6 +253,8 @@ class BisectionSearch:
         log_print(f"Fixed Enzyme: {self.fixed_enzyme}")
         log_print(f"Data File: {self.data_file}")
         log_print(f"{'='*60}\n")
+
+        start_time = time.perf_counter()
         
         iteration = 0
         
@@ -200,6 +265,8 @@ class BisectionSearch:
             log_print(f"Iteration {iteration}/{self.max_iterations}:")
             log_print(f"  Current range: [{self.lower:.6f}, {self.upper:.6f}]")
             log_print(f"  Testing midpoint: {mid:.6f}")
+
+            log_print(f" Started CPP: {time.perf_counter () - start_time}")
             
             # Run C++ program with current bound
             if not self.run_cpp_program(mid):
@@ -207,6 +274,8 @@ class BisectionSearch:
                 return None
             
             # Check if solution is feasible
+
+            log_print(f" Started Feasibility: {time.perf_counter () - start_time}")
             is_feasible = self.check_feasibility()
             
             # Update bounds based on feasibility
@@ -269,7 +338,8 @@ def main():
         print(f"ERROR loading job config: {e}")
         sys.exit(1)
 
-    LOG_FILE = f"bisection_search_job{job_number}.log"
+    # LOG_FILE = f"/log/bisection_search_job{job_number}.log"
+    LOG_FILE = f"/bisection_search_job{job_number}.log"
 
     with open(LOG_FILE, 'w') as f:
         f.write("="*60 + "\n")
