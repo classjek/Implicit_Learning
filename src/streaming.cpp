@@ -344,10 +344,11 @@ void convert_ineq_a_ba1_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                 }
             }
         }
-        // add trace objective for each diagonal position
-        for (int s = 0; s < sizeCone; s++) {
-            ctx.write_entry(0, ctx.nBlocks, s + 1, s + 1, 1e-3);
-        }
+        // Remove for interior point solver (MOSEK), only uncomment for first order methods (CuLoRADS)
+        // // add trace objective for each diagonal position
+        // for (int s = 0; s < sizeCone; s++) {
+        //     ctx.write_entry(0, ctx.nBlocks, s + 1, s + 1, 1e-3);
+        // }
     }
 }
 
@@ -387,11 +388,12 @@ void convert_ineq_a_ba2_stream(poly_info& polyinfo, spvec_array& bassinfo, Strea
                 }
             }
         }
-        if (!ctx.is_counting_pass) {
-            for (int j = 0; j < bsize; j++) {
-                ctx.write_entry(0, ctx.nBlocks, j + 1, j + 1, 1e-3);
-            }
-        }
+        // Remove for interior point solver (MOSEK), only uncomment for first order methods (CuLoRADS)
+        // if (!ctx.is_counting_pass) {
+        //     for (int j = 0; j < bsize; j++) {
+        //         ctx.write_entry(0, ctx.nBlocks, j + 1, j + 1, 1e-3);
+        //     }
+        // }
     }
 }
 
@@ -485,62 +487,16 @@ void convert_ba1mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
         ctx.nBlocks++;  // Track block number for this pass
         ctx.write_entry(var_num, ctx.nBlocks, 1, 1, 1.0);
 
-        // trace normalization variable contributes +1 on diag of moment blocks
-        if (ctx.trace_norm_var_num > 0) {
-            ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, 1, 1, 1.0);
-        }
+        // Remove for interior point solver (MOSEK), only uncomment for first order methods (CuLoRADS)
+        // // trace normalization variable contributes +1 on diag of moment blocks
+        // if (ctx.trace_norm_var_num > 0) {
+        //     ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, 1, 1, 1.0);
+        // }
 
-        // add trace objective for this 1x1 moment block
-        ctx.write_entry(0, ctx.nBlocks, 1, 1, 1e-3);
+        // // add trace objective for this 1x1 moment block
+        // ctx.write_entry(0, ctx.nBlocks, 1, 1, 1e-3);
     }
 }
-
-// // create a moment matrix from a given monomial basis (bassinfo)
-// void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
-//     int bsize = bassinfo.pnz_size;
-
-//     if (ctx.is_counting_pass) {
-//         std::cout << "BA2MMT: bsize=" << bsize << ", expected_monomials=" << (bsize * (bsize + 1) / 2) << std::endl;
-//     }
-
-//     if (ctx.is_counting_pass) {
-//         // Pass 1: Register all monomials, create block
-//         ctx.start_block(bsize);  // Positive = full matrix of size bsize
-//         std::unordered_set<std::string> unique_basis; 
-
-//         for (int i = 0; i < bsize; i++) {
-//             std::string s;
-//             int start = bassinfo.pnz[0][i];
-//             int len = bassinfo.pnz[1][i];
-//             if (start >= 0) {
-//                 for (int t = 0; t < len; t++) {
-//                     s += std::to_string(bassinfo.vap[0][start+t]) + "^" + 
-//                          std::to_string(bassinfo.vap[1][start+t]) + " ";
-//                 }
-//             }
-//             unique_basis.insert(s);
-//         }
-
-//         // Upper triangle: all pairs (i,j) where j >= i
-//         for (int i = 0; i < bsize; i++) {
-//             for (int j = i; j < bsize; j++) { // Merge basis[i] with basis[j]
-//                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
-//                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
-//                 ctx.register_monomial(key);
-//             }
-//         }
-//     } else { // second pass: write entries
-//         ctx.nBlocks++;
-//         for (int i = 0; i < bsize; i++) {
-//             for (int j = i; j < bsize; j++) {
-//                 MonomialKey key = merge_monomials(bassinfo, i, bassinfo, j);
-//                 simplify_key(key, *ctx.binvec_ptr, *ctx.Sqvec_ptr);
-//                 int var_num = ctx.get_var_number(key);
-//                 ctx.write_entry(var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
-//             }
-//         }
-//     }
-// }
 
 // Set objective coefficient to 1e-12 for all diagonal entries of moment matrix
 // This change should help with numerical stability 
@@ -588,13 +544,14 @@ void convert_ba2mmt_stream(spvec_array& bassinfo, StreamingContext& ctx) {
                 // Write constraint entry (var_num ≥ 1)
                 ctx.write_entry(var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
 
+                // Remove for interior point solver (MOSEK), only uncomment for first order methods (CuLoRADS)
                 // Write objective entry for diagonal (var_num = 0)
-                if (i == j) {
-                    if (ctx.trace_norm_var_num > 0) { 
-                        ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
-                    }
-                    ctx.write_entry(0, ctx.nBlocks, i+1, j+1, 1e-3);
-                }
+                // if (i == j) {
+                //     if (ctx.trace_norm_var_num > 0) { 
+                //         ctx.write_entry(ctx.trace_norm_var_num, ctx.nBlocks, i + 1, j + 1, 1.0);
+                //     }
+                //     ctx.write_entry(0, ctx.nBlocks, i+1, j+1, 1e-3);
+                // }
             }
         }
     }
@@ -651,23 +608,12 @@ void stream_psdp_to_file(int mdim,int msize,std::vector<poly_info>& polyinfo,std
     // prepare for pass 2
     ctx.finalize_counting();
 
-    ctx.trace_norm_var_num = ctx.mDim; 
-    ctx.mDim++; 
-    ctx.obj_coef.resize(ctx.mDim + 1, 0.0); 
-    ctx.obj_coef[ctx.trace_norm_var_num - 1] = 1.0; 
-
-    // // give cuLoRADS a non-trivial objective 
-    // {
-    //     MonomialKey const_key;  // empty key = constant monomial 1
-    //     auto it = ctx.monomial_to_var.find(const_key);
-    //     if (it != ctx.monomial_to_var.end()) {
-    //         int const_var = it->second;
-    //         ctx.const_var_num = const_var; 
-    //         if (const_var >= 1 && const_var <= (int)ctx.obj_coef.size()) {
-    //             ctx.obj_coef[const_var - 1] = 1.0;
-    //         }
-    //     }
-    // }
+    // Remove for interior point solver (MOSEK), only uncomment for first order methods (CuLoRADS)
+    // Trace Norm variable setup
+    // ctx.trace_norm_var_num = ctx.mDim; 
+    // ctx.mDim++; 
+    // ctx.obj_coef.resize(ctx.mDim + 1, 0.0); 
+    // ctx.obj_coef[ctx.trace_norm_var_num - 1] = 1.0; 
     
     // Open output file
     ctx.output_file = fopen(sdpafile.c_str(), "w");
