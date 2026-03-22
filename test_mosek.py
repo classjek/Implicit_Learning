@@ -7,6 +7,7 @@ import csv
 import time
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeout
+from multiprocessing import Process, Queue
 
 from run_mosek import solve as mosek_solve
 
@@ -18,7 +19,7 @@ TSV_FILE        = './data/jobArray_function.tsv'
 BOUND_TYPE      = 'upper'
 BOUND_VALUE     = 0.01
 
-MOSEK_TIMEOUT   = 600   
+MOSEK_TIMEOUT   = 180   
 CPP_TIMEOUT     = 300  
 
 OUTPUT_CSV      = 'probe_results.csv'
@@ -61,35 +62,32 @@ def run_cpp(relation_name, fixed_gene, fixed_enzyme):
         return False
 
 
-def _mosek_worker(dat_path):
-    """Runs in a separate process so we can kill it on timeout."""
-    prob = mosek_solve(dat_path, verbose=False)
-    return prob.status
+def _mosek_worker(dat_path, q):
+    from run_mosek import solve as mosek_solve
+    prob = mosek_solve(dat_path, verbose=True)
+    q.put((prob.status, prob.value))
 
 
 def check_mosek_with_timeout(dat_file):
-    """Returns (status_str, elapsed_seconds).
-    status_str: 'optimal' | 'infeasible' | 'other:<status>' | 'TIMEOUT' | 'ERROR'
-    """
     t0 = time.perf_counter()
-    with ProcessPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(_mosek_worker, str(dat_file.absolute()))
-        try:
-            status = future.result(timeout=MOSEK_TIMEOUT)
-            elapsed = time.perf_counter() - t0
-            if status == 'optimal':
-                return 'OK_feasible', elapsed
-            elif 'infeasible' in status:
-                return 'OK_infeasible', elapsed
-            else:
-                return f'OK_other:{status}', elapsed
-        except FuturesTimeout:
-            elapsed = time.perf_counter() - t0
-            return 'TIMEOUT', elapsed
-        except Exception as e:
-            elapsed = time.perf_counter() - t0
-            return f'ERROR:{e}', elapsed
-
+    q = Queue()
+    p = Process(target=_mosek_worker, args=(str(dat_file.absolute()), q))
+    p.start()
+    p.join(timeout=MOSEK_TIMEOUT)
+    elapsed = time.perf_counter() - t0
+    if p.is_alive():
+        p.terminate(); p.join()
+        return 'TIMEOUT', elapsed
+    try:
+        status, value = q.get_nowait()
+        if status == 'optimal':
+            return 'OK_feasible', elapsed
+        elif 'infeasible' in status:
+            return 'OK_infeasible', elapsed
+        else:
+            return f'OK_other:{status}', elapsed
+    except Exception as e:
+        return f'ERROR:{e}', elapsed
 
 def main():
     if not os.path.exists(TSV_FILE):

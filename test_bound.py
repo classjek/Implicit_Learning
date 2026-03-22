@@ -15,8 +15,11 @@ from run_mosek import solve as mosek_solve
 # ── Config (edit these to match your setup) ──────────────────────
 DATA_FILE       = '1483249_new.pl'
 # FIXED_GENE      = 'g100036608'
-FIXED_GENE = 'g100038240'
-FIXED_ENZYME    = 'ec_1_13_99_1'
+# FIXED_GENE = 'g100038240'
+# FIXED_ENZYME    = 'ec_1_13_99_1'
+FIXED_GENE      = 'g10295458242'
+FIXED_ENZYME = 'ec_2_7_1_134'
+# FIXED_ENZYME    = 'ec_3_6_1_61'
 EXECUTABLE_PATH = './implicit_learning'
 DAT_FILE        = Path('./data/sparsepop_output_test.dat-s')
 # ─────────────────────────────────────────────────────────────────
@@ -48,7 +51,6 @@ def check_feasibility():
     prob = mosek_solve(str(DAT_FILE.absolute()), verbose=True)
     print(f"\n[RESULT] status={prob.status}  obj={prob.value}")
     return prob.status == 'optimal'
-
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:

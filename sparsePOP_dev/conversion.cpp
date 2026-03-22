@@ -1410,9 +1410,20 @@ void s3r::genBasisSupports(class supsetSet & BasisSupports){
                 continue; // go to next constraint
             }
 
-            // skip linear bounds (degree-1 single variable)
+            // OLD APPROACH // skip linear bounds (degree-1 single variable)
+            // if (this->Polysys.polyDegree(i) == 1 && nVars == 1) {
+            //     List.clear();
+            //     Moment.dimVar = this->Polysys.dimVar;
+            //     Moment.setSupSet(nDim, List);
+            //     BasisSupports.push(Moment);
+            //     continue;
+            // }
+            
+            // linear bounds (degree-1 single variable): give constant basis (1x1 block)
             if (this->Polysys.polyDegree(i) == 1 && nVars == 1) {
                 List.clear();
+                class sup constSup; // constant monomial (no variables)
+                List.push_back(constSup);
                 Moment.dimVar = this->Polysys.dimVar;
                 Moment.setSupSet(nDim, List);
                 BasisSupports.push(Moment);
@@ -3738,6 +3749,28 @@ void conversion_part2(
     // Build the symmetry map and print which variables are merged
     std::vector<int> var_map = build_symmetry_map(wl_labels, newNumVars, observedValueById);
 
+    // for (int v = 0; v < (int)var_map.size(); v++) {
+    //     if (var_map[v] != v)
+    //         std::cout << "  atomID " << v << " -> rep " << var_map[v] << std::endl;
+    // }
+    std::map<int, std::vector<int>> rep_to_members;
+    for (int v = 0; v < (int)var_map.size(); v++)
+        if (var_map[v] != v)
+            rep_to_members[var_map[v]].push_back(v);
+
+    std::cout << "[VAR MAP] WL: " << rep_to_members.size() << " non-trivial equivalence classes:" << std::endl;
+    for (auto& kv : rep_to_members) {
+        std::cout << "  rep=" << kv.first << " absorbs: ";
+        int shown = 0;
+        for (int m : kv.second) {
+            std::cout << m;
+            if (++shown < (int)kv.second.size()) std::cout << ",";
+            if (shown >= 8) { std::cout << "...+" << (kv.second.size()-8) << " more"; break; }
+            std::cout << " ";
+        }
+        std::cout << std::endl;
+    }
+
     // Print the equivalence classes for verification
     // std::cout << "\n[WL] Equivalence classes (only non-trivial):" << std::endl;
     // std::unordered_map<int, std::vector<int>> classes; 
@@ -3813,11 +3846,17 @@ void conversion_part2(
     }
     // k is now the compacted variable count
     std::cout << "[WL] Step 2 complete: " << active_vars.size() << " active variables will be compacted to indices 0.." << (k-1) << std::endl;
-    // std::cout << "[WL] Compaction map: ";
+    std::cout << "[WL] Compaction map: ";
     // for (int v = 0; v < newNumVars; v++) {
     //     if (compact_map[v] != -1)
     //         std::cout << "x" << v << "->x" << compact_map[v] << " ";
     // }
+    std::vector<int> inv_compact(k, -1);
+    for (int v = 0; v < (int)compact_map.size(); v++)
+        if (compact_map[v] != -1) inv_compact[compact_map[v]] = v;
+    std::cout << "[WL] Compact index -> original rep:" << std::endl;
+    for (int ci = 0; ci < k; ci++)
+        std::cout << "  x" << ci << " <- rep=" << inv_compact[ci] << std::endl;
     
     // Apply compact_map to polynomial supIdx and update poly.dimVar to k
     for (auto& p : sr.Polysys.polynomial) {
@@ -3912,11 +3951,11 @@ void conversion_part2(
 
     std::cout << "[WL] Dedup complete: removed " << removed << " duplicate polynomials, " << sr.Polysys.polynomial.size() << " remain" << std::endl;
 
-    // cout << '\n' << "------Printing NEW Polynomials (after all changes) -------" << endl;
-    // for (auto& poly : sr.Polysys.polynomial) {
-    //     printPolynomial(poly, "resulting poly");
-    // }
-    // cout << "------Done Printing NEW Polynomials-------" << endl;
+    cout << '\n' << "------Printing NEW Polynomials(" << sr.Polysys.polynomial.size() << ") (after all changes) -------" << endl;
+    for (auto& poly : sr.Polysys.polynomial) {
+        printPolynomial(poly, "resulting poly");
+    }
+    cout << "------Done Printing NEW Polynomials-------" << endl;
 
 
     // resize degOne terms, which was previously sized to match the number of original variables
